@@ -1,0 +1,13 @@
+# Normalize line endings to LF in the repo (Windows checkouts stay consistent with CI/Prettier).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pptx binary
+*.pdf binary

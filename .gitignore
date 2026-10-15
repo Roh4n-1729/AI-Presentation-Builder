@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# build / test output
+dist/
+coverage/
+playwright-report/
+test-results/
+.eslintcache
+
+# env: keys live in Vercel env vars or .env.local, never in git
+.env
+.env*.local
+
+# vercel
+.vercel/
+
+# logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

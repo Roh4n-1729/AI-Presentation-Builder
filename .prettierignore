@@ -1,0 +1,5 @@
+dist
+coverage
+.vercel
+package-lock.json
+docs/TRADEOFFS.md
