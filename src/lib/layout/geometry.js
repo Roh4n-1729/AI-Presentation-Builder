@@ -1,0 +1,67 @@
+import { ARTBOARD_H, ARTBOARD_W, MIN_SIZE, PLACEMENT_GRID, SAFE_MARGIN } from '../constants.js';
+
+/**
+ * Shrink a box to fit the artboard (minus the safe margin), then push it fully inside.
+ * Never fails: a huge chart dropped on a title slide still lands, just smaller (brief requirement).
+ *
+ * @param {import('../schema/elements.js').BBox} bbox
+ * @returns {import('../schema/elements.js').BBox}
+ */
+export function clampBBox(bbox) {
+  const w = Math.max(MIN_SIZE, Math.min(bbox.w, ARTBOARD_W - SAFE_MARGIN * 2));
+  const h = Math.max(MIN_SIZE, Math.min(bbox.h, ARTBOARD_H - SAFE_MARGIN * 2));
+  const x = Math.min(Math.max(bbox.x, 0), ARTBOARD_W - w);
+  const y = Math.min(Math.max(bbox.y, 0), ARTBOARD_H - h);
+  const out = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+  if (bbox.rotation) out.rotation = bbox.rotation;
+  return out;
+}
+
+/** Strict overlap: boxes that only touch edges don't overlap. */
+export const overlaps = (a, b) =>
+  a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+/**
+ * Collision-aware search: the free spot (no overlap with other elements) closest to `near`,
+ * on a 40-unit grid inside the safe margin. Without `near`, scans top-left first.
+ * Returns null when nothing is free.
+ *
+ * @param {import('../schema/deck.js').Slide} slide
+ * @param {{ w: number, h: number }} size
+ * @param {{ x: number, y: number }} [near]  preferred top-left corner
+ * @param {string} [ignoreId]  element to ignore (the one being moved)
+ */
+export function searchFreeSpot(slide, size, near, ignoreId) {
+  const box = clampBBox({ x: 0, y: 0, ...size });
+  const others = slide.elementOrder
+    .filter((id) => id !== ignoreId)
+    .map((id) => slide.elements[id].bbox);
+
+  const candidates = [];
+  for (let y = SAFE_MARGIN; y + box.h <= ARTBOARD_H - SAFE_MARGIN; y += PLACEMENT_GRID) {
+    for (let x = SAFE_MARGIN; x + box.w <= ARTBOARD_W - SAFE_MARGIN; x += PLACEMENT_GRID) {
+      candidates.push({ x, y });
+    }
+  }
+  if (near) {
+    const d = (p) => (p.x - near.x) ** 2 + (p.y - near.y) ** 2;
+    candidates.sort((a, b) => d(a) - d(b)); // stable: ties keep top-left-first order
+  }
+  for (const p of candidates) {
+    const candidate = { ...box, ...p };
+    if (!others.some((o) => overlaps(candidate, o))) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Like searchFreeSpot, but never fails: if nothing is free, falls back to `near` (or the center),
+ * clamped. Used for thumbnail drops and paste, where the element keeps its size.
+ */
+export function findFreeSpot(slide, size, near, ignoreId) {
+  const spot = searchFreeSpot(slide, size, near, ignoreId);
+  if (spot) return spot;
+  const box = clampBBox({ x: 0, y: 0, ...size });
+  const fallback = near ?? { x: (ARTBOARD_W - box.w) / 2, y: (ARTBOARD_H - box.h) / 2 };
+  return clampBBox({ ...box, ...fallback });
+}

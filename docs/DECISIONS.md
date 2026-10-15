@@ -8,14 +8,17 @@ When a decision changes during the build, the original record stays as written, 
 
 ## Revision log
 
-| Date       | Record                                                                | Change                                                                                                                                                               | Affects         |
-| ---------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 2026-10-15 | [D24](#d24-ops-are-id-anchored-and-fully-resolved)                    | Ops address slides and positions by id, carry resolved geometry and ids, and copies are id-based; `reorder_elements` naming; new `update_deck` op; tool → op mapping | D1, D3, D9, D11 |
-| 2026-10-15 | [D25](#d25-ai-history-entries-are-contiguous-runs-of-one-turn)        | One AI turn = one _contiguous_ history entry; a user edit mid-turn splits it                                                                                         | D10             |
-| 2026-10-15 | [D26](#d26-vanilla-zustand-store-react-binds-through-hooks)           | Store created with `zustand/vanilla`; React binds through hooks                                                                                                      | D10, D19        |
-| 2026-10-15 | [D27](#d27-sarvam-through-its-official-ai-sdk-provider-on-ai-sdk-v7)  | Sarvam through the official `sarvam-ai-sdk` provider on AI SDK v7 instead of the generic OpenAI-compatible provider                                                  | D14, D15        |
-| 2026-10-15 | [D28](#d28-api-runs-as-plain-node-esm-layer-rules-enforced-by-eslint) | `/api` as plain Node ESM with explicit `.js` imports; layer rules enforced by ESLint; Vercel function config                                                         | D18, D19        |
-| 2026-10-15 | [D29](#d29-react-19)                                                  | React 19 kept after verifying react-moveable on it                                                                                                                   | D18             |
+| Date       | Record                                                                | Change                                                                                                                                                                  | Affects         |
+| ---------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 2026-10-15 | [D24](#d24-ops-are-id-anchored-and-fully-resolved)                    | Ops address slides and positions by id, carry resolved geometry and ids, and copies are id-based; `reorder_elements` naming; new `update_deck` op; tool → op mapping    | D1, D3, D9, D11 |
+| 2026-10-15 | [D25](#d25-ai-history-entries-are-contiguous-runs-of-one-turn)        | One AI turn = one _contiguous_ history entry; a user edit mid-turn splits it                                                                                            | D10             |
+| 2026-10-15 | [D26](#d26-vanilla-zustand-store-react-binds-through-hooks)           | Store created with `zustand/vanilla`; React binds through hooks                                                                                                         | D10, D19        |
+| 2026-10-15 | [D27](#d27-sarvam-through-its-official-ai-sdk-provider-on-ai-sdk-v7)  | Sarvam through the official `sarvam-ai-sdk` provider on AI SDK v7 instead of the generic OpenAI-compatible provider                                                     | D14, D15        |
+| 2026-10-15 | [D28](#d28-api-runs-as-plain-node-esm-layer-rules-enforced-by-eslint) | `/api` as plain Node ESM with explicit `.js` imports; layer rules enforced by ESLint; Vercel function config                                                            | D18, D19        |
+| 2026-10-15 | [D29](#d29-react-19)                                                  | React 19 kept after verifying react-moveable on it                                                                                                                      | D18             |
+| 2026-10-15 | [D30](#d30-schema-v2-and-op-semantics-as-built)                       | Schema v2 details as built: optional text style filled from the theme, `caption` role, data-shape checks, `OpError` codes, lock and slot rules, deterministic `applyOp` | D4, D9, D11     |
+| 2026-10-15 | [D31](#d31-collision-aware-placement)                                 | Placement: explicit bbox wins, then slot, then nearest free spot, shrinking to 75%/50% before overlapping                                                               | D7, D9          |
+| 2026-10-15 | [D32](#d32-design-system-implementation)                              | shadcn components ported from upstream source into JS (`components.json` kept for the CLI); `cn` in `primitives/`; token names; validated chart palette                 | D16, D17        |
 
 ---
 
@@ -43,6 +46,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D4. Element model
 
+- **Status:** Accepted; details as built in [D30](#d30-schema-v2-and-op-semantics-as-built).
 - **Decision:** Every element has `id`, `type` (text, image, chart, table, shape), `bbox {x, y, w, h, rotation?}`, optional `locked` and `slot`, and a type-specific payload. Chart type is stored separately from chart data. Text is an array of paragraphs (text, bullet, level) with box-level style.
 - **Why:** Bounding boxes on every element make drag, resize and cross-slide moves uniform. Separating chart type from data means switching bar → line keeps the data by construction. Paragraphs are simple for the model to write and map directly to PPTX text runs.
 - **Consequences:** No mixed formatting inside a paragraph (documented limit). Pie charts use the first series.
@@ -81,7 +85,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D9. Layout slots and clamping
 
-- **Status:** Accepted; _where_ the layout code runs is amended by [D24](#d24-ops-are-id-anchored-and-fully-resolved) (callers resolve slots and free spots; `applyOp` only clamps).
+- **Status:** Accepted; _where_ the layout code runs is amended by [D24](#d24-ops-are-id-anchored-and-fully-resolved) (callers resolve slots and free spots; `applyOp` only clamps); placement order in [D31](#d31-collision-aware-placement).
 - **Decision:** Each layout (title, content, two-column, comparison, section, chart-focus, blank) defines named slots with geometry and a text budget. Elements added without a `bbox` go into the matching slot; if it's full, a free-spot search places them; every box is clamped to the artboard.
 - **Why:** LLMs place boxes poorly. Slots make generated decks look designed and make the model's job easier.
 - **Consequences:** An element records its `slot`; a manual drag clears it. `change_layout` reflows only elements still in a slot, so it never moves something the user placed by hand. Text that overflows its box shrinks its font down to a floor.
@@ -150,6 +154,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D16. Tailwind v4 + shadcn/ui + Lucide
 
+- **Status:** Accepted; how the components got into the repo, token names and `cn` location in [D32](#d32-design-system-implementation).
 - **Decision:** Tailwind v4 with design tokens as CSS variables (`@theme`), shadcn/ui components (Radix underneath) generated into the repo in JavaScript, Lucide outlined icons.
 - **Why:** Fits the chosen light, minimal design; tokens make dark mode a variable swap; Radix provides accessible menus, dialogs and the drawer. One styling system only.
 - **Consequences:** The slide renderer does not use Tailwind classes (see D6), so canvas, print and PPTX read the same values.
@@ -273,3 +278,35 @@ When a decision changes during the build, the original record stays as written, 
 - **Decision:** Use React 19 (current major) rather than the spike's React 18.3.
 - **Why:** react-moveable 0.56 was only proven on React 18. A headless-browser check on React 19 passed: drag through a 0.4 CSS scale (100 screen px → 250 artboard units), 8-handle resize, and snapping to another element's edge.
 - **Consequences:** If a later Moveable or dnd-kit issue turns out to be React-19-specific, pin `react`/`react-dom` to 18.3 (no other code changes expected).
+
+### D30. Schema v2 and op semantics as built
+
+- **Status:** Accepted (2026-10-15). Details D4, D9 and D11; no reversal.
+- **Decision:**
+  - **Text:** roles are `title | subtitle | body | caption`. `style` (`fontSize`, `color`, `fontWeight`, `align`, `font`) is entirely optional; the renderer fills gaps from the slide theme by role, so the model only writes content.
+  - **Data shape is validated, not repaired:** every chart series has one value per category; tables are rectangular (≤ 20 × 10); charts have 1–8 series and ≤ 24 categories. Zod messages are written so the model can fix its own call.
+  - **Failures are typed:** `applyOp` throws `OpError` with `NOT_FOUND`, `LOCKED`, `INVALID` or `CONFLICT`. AI tools return it as a tool result; the client skips the op and shows a notice.
+  - **Locks:** a locked element refuses `update_element` (except the patch that unlocks it), `move_element` and `delete_element`; z-order changes and copies are allowed; `change_layout` skips it.
+  - **Slots:** `move_element` and an `update_element` that changes `bbox` clear `slot` (the element is now hand-placed); `change_layout` ignores placements for elements no longer in a slot.
+  - **Merging:** `update_element` merges plain-object fields one level deep (`bbox`, `style`, `chart`); arrays are replaced; `null` removes a field; `id` and `type` can't change. The merged element is re-validated and its box clamped.
+  - **Determinism:** `applyOp` uses no clock and mints no ids. `duplicate_slide` uses the op's `idMap` and derives any missing id as `<oldId>_<newSlideSuffix>`; `updatedAt` is set by the store, outside `applyOp`.
+- **Why:** The model writes less and fails loudly in a way it can recover from; the same op gives the same deck on the server's working copy and in the browser.
+- **Consequences:** 53 unit tests cover schema, ops (including the "two diverged copies" case from D24), layout and themes.
+
+### D31. Collision-aware placement
+
+- **Status:** Accepted (2026-10-15). Details D7 and D9 (was an open item).
+- **Decision:** `placeElement` decides where a new element goes, in this order: an explicit bbox (clamped) → the preferred slot → the first free slot accepting the element's kind → the free spot nearest the requested position at the default size, then at 75% and 50% → overlap at the requested spot only if the slide is genuinely full. `findFreeSpot(slide, size, near, ignoreId)` searches a 40-unit grid ordered by distance from `near`, keeping the element's size (used for thumbnail drops and paste).
+- **Why:** The brief asks for collision-aware drops; an AI-added second chart shouldn't land on top of the first.
+- **Consequences:** Placement code runs in callers (tool layer, UI hooks), never inside `applyOp` (D24).
+
+### D32. Design system implementation
+
+- **Status:** Accepted (2026-10-15). Details D16 and D17.
+- **Decision:**
+  - **shadcn components** (`button`, `tooltip`, `dropdown-menu`, `kbd`) were taken from the upstream new-york-v4 registry source and converted TSX → JSX by stripping types (what the CLI's JS mode does), because the registry was unreachable from the build sandbox. `components.json` (`tsx: false`, aliases into `src/primitives`) is committed so `npx shadcn add <name>` works on a developer machine. `button` is restyled for §8c (pill primary/secondary/outline/ai, 6px ghost icon buttons).
+  - **`cn()`** lives in `src/primitives/cn.js` (UI-only), not `src/lib` (shared with `/api`). It registers the custom font-size tokens with tailwind-merge so `text-ui` isn't mistaken for a color.
+  - **Token names:** shadcn's semantic names (`background`, `foreground`, `muted-foreground`, `border`, `primary`, `ring`, …) plus `panel`, `subtle`, `canvas`, `faint`, `user` (indigo), `ai` (saffron), `success`, `warning`. Dark mode is a `.dark` class on `<html>`, set before first paint by an inline script and persisted in localStorage.
+  - **Chart palette** (slide theme `paper`): indigo, saffron, teal, violet, ochre, rose, assigned in fixed order. It passes the dataviz palette checks on white (lightness band, chroma floor, worst adjacent CVD ΔE 13.2, normal-vision ΔE 21.5, ≥ 3:1 contrast). It replaces the spike's palette.
+- **Why:** Same components and behaviour as the CLI output, with one place to change chrome colors and a chart palette that stays readable for color-blind viewers and in print.
+- **Consequences:** Fonts load from Google Fonts (Geist, Geist Mono, Instrument Serif). New shadcn components are added with the CLI on a dev machine, or ported the same way.
