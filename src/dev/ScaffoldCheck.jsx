@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import Moveable from 'react-moveable';
 import { ARTBOARD_H, ARTBOARD_W } from '../lib/constants.js';
 
@@ -9,27 +9,65 @@ import { ARTBOARD_H, ARTBOARD_W } from '../lib/constants.js';
  *  2. /api/sse-test streams events one by one (not buffered) and Stop aborts the request.
  * Deleted when the real editor replaces App.
  */
-const SCALE = 0.4;
+const START = { x: 200, y: 200, w: 480, h: 300 };
 
 function MoveableCheck() {
   const boxRef = useRef(null);
   const guideRef = useRef(null);
   const artboardRef = useRef(null);
-  const [bbox, setBbox] = useState({ x: 200, y: 200, w: 480, h: 300 });
+  const [bbox, setBbox] = useState(START);
+  const [scale, setScale] = useState(0.4);
   const [log, setLog] = useState('idle');
+  const moveableRef = useRef(null);
+
+  // Moveable caches the target's on-screen rect. Whenever the box moves without Moveable doing it
+  // (React re-renders left/top after a gesture commit, an undo, an AI op) or the zoom changes,
+  // it must re-measure, or its outline and handles stay at the old spot. Layout effect: runs after
+  // React updates the DOM but before the browser paints, so the stale outline never shows.
+  // In the real canvas the dependency is the slide object (covers every op) plus scale.
+  useLayoutEffect(() => {
+    moveableRef.current?.updateRect();
+  }, [bbox, scale]);
 
   return (
     <section>
       <h2 style={{ fontSize: 16 }}>1 · Moveable on React 19 (scaled artboard)</h2>
       <p style={{ fontSize: 13, color: '#6b6b6b' }}>
         Drag and resize the indigo box; guides should appear when aligned with the grey box or the
-        artboard edges. Store write happens only on release.
+        artboard edges. Store write happens only on release. The outline must follow the box after
+        every drag, resize, reset and zoom change.
       </p>
+      <div
+        style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13, marginBottom: 8 }}
+      >
+        <button
+          data-testid="reset-box"
+          onClick={() => {
+            setBbox(START);
+            setLog('reset (external change, like undo or an AI op)');
+          }}
+        >
+          Reset position
+        </button>
+        <label>
+          Zoom{' '}
+          <input
+            data-testid="zoom"
+            type="range"
+            min="0.25"
+            max="0.6"
+            step="0.05"
+            value={scale}
+            onChange={(e) => setScale(Number(e.target.value))}
+          />{' '}
+          {scale.toFixed(2)}
+        </label>
+      </div>
       <div
         style={{
           position: 'relative',
-          width: ARTBOARD_W * SCALE,
-          height: ARTBOARD_H * SCALE,
+          width: ARTBOARD_W * scale,
+          height: ARTBOARD_H * scale,
           boxShadow: '0 0 0 1px #e6e6e6',
         }}
       >
@@ -39,7 +77,7 @@ function MoveableCheck() {
             inset: 0,
             width: ARTBOARD_W,
             height: ARTBOARD_H,
-            transform: `scale(${SCALE})`,
+            transform: `scale(${scale})`,
             transformOrigin: 'top left',
           }}
         >
@@ -74,6 +112,7 @@ function MoveableCheck() {
           </div>
         </div>
         <Moveable
+          ref={moveableRef}
           target={boxRef}
           draggable
           resizable
