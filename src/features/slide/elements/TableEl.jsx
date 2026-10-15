@@ -1,5 +1,5 @@
 import { resolveColor } from '@/lib/theme/index.js';
-import { useSlideInteraction } from '../interaction.js';
+import { stopEditorKeys, useSlideInteraction } from '../interaction.js';
 
 /** Real <table>; in edit mode every cell is contentEditable and commits on blur. */
 export function TableEl({ el, theme, editing }) {
@@ -43,7 +43,7 @@ export function TableEl({ el, theme, editing }) {
                       ? (e) => ix?.commitCell(el, r, col, e.currentTarget.innerText)
                       : undefined
                   }
-                  onKeyDown={editing ? (e) => e.stopPropagation() : undefined}
+                  onKeyDown={editing ? stopEditorKeys : undefined}
                   style={{
                     padding: '14px 20px',
                     border: `2px solid ${c('border')}`,

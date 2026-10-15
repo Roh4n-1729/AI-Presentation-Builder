@@ -3,7 +3,6 @@ import { ArrowUp, MousePointer2, Square, X } from 'lucide-react';
 import { useAi } from '@/hooks/useAi.js';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { findElement } from '@/lib/ops/index.js';
-import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
 
 const SLIDE_COUNTS = ['auto', 4, 5, 6, 7, 8, 10, 12];
@@ -23,41 +22,12 @@ function useSelectionLabel() {
   });
 }
 
-function ModeToggle({ mode, setMode, deckEmpty, disabled }) {
-  const opts = [
-    { id: 'edit', label: 'Edit deck', disabled: deckEmpty },
-    { id: 'generate', label: 'New deck' },
-  ];
-  return (
-    <div
-      role="radiogroup"
-      aria-label="What the AI should do"
-      className="flex rounded-md bg-subtle p-0.5"
-    >
-      {opts.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          role="radio"
-          aria-checked={mode === o.id}
-          disabled={disabled || o.disabled}
-          onClick={() => setMode(o.id)}
-          className={cn(
-            'rounded-[5px] px-2 py-0.5 text-label font-medium transition-colors duration-120 disabled:opacity-50',
-            mode === o.id
-              ? 'bg-panel text-foreground shadow-pill-light'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** The input: Enter sends, Shift+Enter adds a line, Stop while a run streams. */
-export function Composer({ draft, setDraft, mode, setMode, deckEmpty }) {
+/**
+ * The input: Enter sends, Shift+Enter adds a line, Stop while a run streams. The chat edits the
+ * open deck; it only builds a deck when the deck is still empty ("Start blank"). New decks start
+ * from the "New" button (D40).
+ */
+export function Composer({ draft, setDraft, mode }) {
   const ai = useAi();
   const aiBusy = useDeck((s) => s.aiBusy);
   const selectionLabel = useSelectionLabel();
@@ -79,7 +49,6 @@ export function Composer({ draft, setDraft, mode, setMode, deckEmpty }) {
     if (mode === 'generate') {
       const v = slideCountRef.current?.value;
       ai.generateDeck({ prompt: text, slideCount: v && v !== 'auto' ? Number(v) : undefined });
-      setMode('edit'); // after a generation, the natural next step is refining it
     } else {
       ai.runEdit(text);
     }
@@ -87,10 +56,10 @@ export function Composer({ draft, setDraft, mode, setMode, deckEmpty }) {
 
   return (
     <div className="shrink-0 border-t p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <ModeToggle mode={mode} setMode={setMode} deckEmpty={deckEmpty} disabled={aiBusy} />
-        {mode === 'generate' && (
-          <label className="ml-auto flex items-center gap-1.5 text-label text-muted-foreground">
+      {mode === 'generate' && (
+        <div className="mb-2 flex items-center gap-2 text-label text-muted-foreground">
+          <span>This deck is empty: describe it and the AI builds it.</span>
+          <label className="ml-auto flex items-center gap-1.5">
             Slides
             <select
               ref={slideCountRef}
@@ -105,8 +74,8 @@ export function Composer({ draft, setDraft, mode, setMode, deckEmpty }) {
               ))}
             </select>
           </label>
-        )}
-      </div>
+        </div>
+      )}
 
       {mode === 'edit' && selectionLabel && (
         <div className="mb-2 flex w-fit items-center gap-1.5 rounded-full bg-user-soft py-0.5 pr-1 pl-2 text-label text-user">
@@ -121,11 +90,6 @@ export function Composer({ draft, setDraft, mode, setMode, deckEmpty }) {
             <X className="size-3" strokeWidth={1.75} />
           </button>
         </div>
-      )}
-      {mode === 'generate' && !deckEmpty && (
-        <p className="mb-2 text-label text-muted-foreground">
-          Replaces the current deck. You can restore it from the chat afterwards.
-        </p>
       )}
 
       <div className="flex items-end gap-2 rounded-xl border bg-panel p-2 focus-within:ring-2 focus-within:ring-ring/40">

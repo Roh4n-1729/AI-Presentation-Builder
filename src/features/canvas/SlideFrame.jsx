@@ -6,7 +6,9 @@ import { DropRing } from '@/primitives/DropRing.jsx';
 import { SlideInteractionContext } from '@/features/slide/interaction.js';
 import { SlideRenderer } from '@/features/slide/SlideRenderer.jsx';
 import { CanvasMoveable } from './CanvasMoveable.jsx';
+import { FloatingToolbar } from './FloatingToolbar.jsx';
 import { pendingDrag } from './pendingDrag.js';
+import { useMarquee } from './useMarquee.js';
 
 /** Editor callbacks for the renderer. Built once: handlers read fresh state at call time. */
 function useInteraction() {
@@ -22,7 +24,9 @@ function useInteraction() {
         if (!alreadySelected && !e.shiftKey) pendingDrag.set(el.id, e.nativeEvent);
       },
       onElementDoubleClick(el) {
-        getDeckState().setEditing(el.id);
+        // Charts have no inline editing: their data opens in the drawer.
+        if (el.type === 'chart') getDeckState().openDrawer(el.id);
+        else getDeckState().setEditing(el.id);
       },
       commitText(el, paragraphs) {
         const s = getDeckState();
@@ -64,8 +68,13 @@ export const SlideFrame = memo(function SlideFrame({ slideId, index, scale, them
   const aiFlash = useDeck((s) => s.aiFlash[slideId]);
   const isActive = useDeck((s) => s.activeSlideId === slideId);
   const editingId = useDeck((s) => s.editingId);
+  // While presenting, the editor's handles and toolbar unmount (Moveable draws its control box
+  // in a high layer that would otherwise float over the presentation). Selection is kept, so the
+  // editor comes back exactly as it was after Esc.
+  const presenting = useDeck((s) => Boolean(s.presenting));
   const interaction = useInteraction();
   const frameRef = useRef(null);
+  const marquee = useMarquee(frameRef, slideId, scale);
   const artboardRef = useRef(null);
   if (!slide) return null;
   const editingHere = editingId && slide.elements[editingId] ? editingId : null;
@@ -76,16 +85,14 @@ export const SlideFrame = memo(function SlideFrame({ slideId, index, scale, them
       data-slide-frame={slideId}
       aria-label={`Slide ${index + 1}: ${slide.title}`}
       className={cn(
-        'slide-frame relative shrink-0 rounded-md bg-panel shadow-[0_0_0_1px_var(--border),0_8px_24px_rgb(0_0_0/0.06)] transition-shadow duration-120',
-        isActive && 'shadow-[0_0_0_1px_var(--border),0_12px_32px_rgb(0_0_0/0.10)]',
+        'slide-frame relative shrink-0 rounded-md bg-panel shadow-[var(--slide-shadow)] transition-shadow duration-120',
+        isActive && 'shadow-[var(--slide-shadow-active)]',
         isDragging && 'dragging',
       )}
       style={{ width: ARTBOARD_W * scale, height: ARTBOARD_H * scale }}
-      // Gotcha 4: only a press on the slide background itself deselects.
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget || e.target.classList.contains('artboard'))
-          getDeckState().select(null);
-      }}
+      // Gotcha 4: only a press on the slide background itself deselects; dragging from the
+      // background draws a selection box (useMarquee).
+      onPointerDown={marquee.onPointerDown}
     >
       <span className="absolute top-0 -left-9 text-ui font-medium text-faint tabular-nums">
         {index + 1}
@@ -100,7 +107,29 @@ export const SlideFrame = memo(function SlideFrame({ slideId, index, scale, them
           />
         </SlideInteractionContext.Provider>
       </div>
-      <CanvasMoveable slide={slide} frameRef={frameRef} artboardRef={artboardRef} scale={scale} />
+      {!presenting && (
+        <>
+          <CanvasMoveable
+            slide={slide}
+            frameRef={frameRef}
+            artboardRef={artboardRef}
+            scale={scale}
+          />
+          <FloatingToolbar slide={slide} scale={scale} theme={theme} />
+        </>
+      )}
+      {marquee.rect && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute z-20 rounded-[2px] border border-user bg-user/10"
+          style={{
+            left: marquee.rect.x,
+            top: marquee.rect.y,
+            width: marquee.rect.w,
+            height: marquee.rect.h,
+          }}
+        />
+      )}
       {drop && <DropRing label={`${drop.copy ? 'Copy' : 'Move'} to slide ${index + 1}`} />}
       {reveal && <RevealFlash key={reveal.seq} reveal={reveal} slide={slide} scale={scale} />}
       {aiFlash && (

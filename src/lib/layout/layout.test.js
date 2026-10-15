@@ -13,6 +13,8 @@ import {
 
 const inside = (b) => b.x >= 0 && b.y >= 0 && b.x + b.w <= ARTBOARD_W && b.y + b.h <= ARTBOARD_H;
 
+const slotBox = (layout, name) => LAYOUT_DEFS[layout].slots.find((s) => s.name === name).bbox;
+
 describe('clampBBox', () => {
   it('leaves a box that already fits alone (rounded)', () => {
     expect(clampBBox({ x: 100.4, y: 200.6, w: 300, h: 150 })).toEqual({
@@ -83,7 +85,7 @@ describe('placeElement (slots, D9)', () => {
   it('fills the first free slot that accepts the kind', () => {
     const slide = createSlide({ id: 's_new01', layout: 'chart-focus' });
     expect(placeElement(slide, { type: 'chart' })).toEqual({
-      bbox: LAYOUT_DEFS['chart-focus'].slots[1].bbox,
+      bbox: slotBox('chart-focus', 'visual'),
       slot: 'visual',
     });
     expect(placeElement(slide, { type: 'text', role: 'title' }).slot).toBe('title');
@@ -125,7 +127,7 @@ describe('reflowLayout (change_layout)', () => {
     delete slide.elements.el_body.slot; // the user dragged the body text
     const placements = reflowLayout(slide, 'two-column');
     expect(placements).toEqual({
-      el_chart: { bbox: LAYOUT_DEFS['two-column'].slots[1].bbox, slot: 'left' },
+      el_chart: { bbox: slotBox('two-column', 'left'), slot: 'left' },
     });
   });
 
@@ -136,5 +138,50 @@ describe('reflowLayout (change_layout)', () => {
     expect(placements.el_chart).toBeUndefined();
     expect(placements.el_body.slot).toBe('subtitle'); // subtitle slot accepts body
     expect(reflowLayout(slide, 'blank').el_body.slot).toBeNull();
+  });
+});
+
+describe('slots never stack on existing content (D41)', () => {
+  const textEl = (id, role, bbox) => ({
+    id,
+    type: 'text',
+    role,
+    bbox,
+    paragraphs: [{ text: id }],
+    style: {},
+  });
+
+  it('trims a slot to the part below an element already there', () => {
+    const slide = createSlide({ id: 's_trim1', layout: 'two-column' });
+    // a hand-placed subtitle sitting in the top of the left column
+    slide.elements.el_sub = textEl('el_sub', 'subtitle', { x: 96, y: 320, w: 840, h: 110 });
+    slide.elementOrder.push('el_sub');
+    const { bbox, slot } = placeElement(slide, { type: 'table' });
+    expect(slot).toBe('left');
+    expect(bbox.y).toBe(320 + 110 + 24);
+    expect(bbox.y + bbox.h).toBe(980);
+  });
+
+  it('a subtitle goes into the lead slot above the body, not on top of it', () => {
+    const slide = createSlide({ id: 's_lead1', layout: 'content' });
+    const body = placeElement(slide, { type: 'text', role: 'body' });
+    slide.elements.el_body = { ...textEl('el_body', 'body', body.bbox), slot: body.slot };
+    slide.elementOrder.push('el_body');
+    const lead = placeElement(slide, { type: 'text', role: 'subtitle' });
+    expect(lead.slot).toBe('lead');
+    expect(lead.bbox.y + lead.bbox.h).toBeLessThanOrEqual(body.bbox.y);
+  });
+
+  it("AI coordinates that collide are moved to a free spot; a person's are kept", () => {
+    const slide = createSlide({ id: 's_ai1', layout: 'blank' });
+    slide.elements.el_a = textEl('el_a', 'body', { x: 100, y: 100, w: 600, h: 300 });
+    slide.elementOrder.push('el_a');
+    const want = { x: 120, y: 120, w: 500, h: 200 };
+    expect(placeElement(slide, { type: 'chart', bbox: want }).bbox).toEqual(want);
+    const ai = placeElement(slide, { type: 'chart', bbox: want }, undefined, {
+      avoidOverlap: true,
+    });
+    expect(ai.bbox).toMatchObject({ w: 500, h: 200 });
+    expect(overlaps(ai.bbox, slide.elements.el_a.bbox)).toBe(false);
   });
 });

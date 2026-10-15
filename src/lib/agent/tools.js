@@ -97,6 +97,7 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
       slide,
       { ...partial, bbox: explicitBox(input) },
       input.slot,
+      { avoidOverlap: true }, // models guess coordinates; never stack on existing content (D41)
     );
     const element = { ...partial, id, bbox, ...(slot ? { slot } : {}) };
     return (

@@ -1,9 +1,25 @@
-import { Moon, Plus, Redo2, Sun, Undo2 } from 'lucide-react';
+import {
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Play,
+  Plus,
+  Redo2,
+  Sun,
+  Undo2,
+} from 'lucide-react';
 import { useColorScheme } from '@/hooks/useColorScheme.js';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
+import { useExport } from '@/hooks/useExport.js';
+import { ExportMenu } from './ExportMenu.jsx';
+import { InsertMenu } from './InsertMenu.jsx';
+import { ThemeMenu } from './ThemeMenu.jsx';
 import { IconButtonTip } from '@/primitives/IconButtonTip.jsx';
 import { ToolbarGroup } from '@/primitives/ToolbarGroup.jsx';
+import { Button } from '@/primitives/ui/button.jsx';
 
 const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 const MOD = isMac ? '⌘' : 'Ctrl';
@@ -14,19 +30,36 @@ export function TopBar() {
   const aiBusy = useDeck((s) => s.aiBusy);
   const canUndo = useDeck((s) => s.past.length > 0) && !aiBusy;
   const canRedo = useDeck((s) => s.future.length > 0) && !aiBusy;
-  const { newPresentation } = useWorkspace();
+  const { goToStart } = useWorkspace();
+  const panels = useDeck((s) => s.panels);
+  const hasSlides = useDeck((s) => s.deck.slideOrder.length > 0);
+  const { present } = useExport();
   const { scheme, toggle } = useColorScheme();
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-panel px-3">
-      <div className="flex size-7 items-center justify-center rounded-md bg-user text-label font-semibold text-white">
+      <IconButtonTip
+        icon={panels.filmstrip ? PanelLeftClose : PanelLeftOpen}
+        label={panels.filmstrip ? 'Hide slides panel' : 'Show slides panel'}
+        shortcut={`${MOD} [`}
+        onClick={() => getDeckState().setPanel('filmstrip')}
+      />
+      <button
+        type="button"
+        onClick={goToStart}
+        disabled={aiBusy}
+        aria-label="All presentations"
+        title="All presentations"
+        className="flex size-7 items-center justify-center rounded-md bg-user text-label font-semibold text-white transition-opacity duration-120 hover:opacity-90 disabled:opacity-60"
+      >
         AI
-      </div>
+      </button>
       <input
         key={title /* re-sync after undo or AI rename */}
         defaultValue={title}
         aria-label="Presentation title"
-        className="w-72 rounded-sm bg-transparent px-1.5 py-1 text-sm font-medium outline-none hover:bg-subtle focus:bg-panel focus:ring-2 focus:ring-ring/50"
+        title={title}
+        className="w-[clamp(12rem,28vw,30rem)] min-w-0 truncate rounded-sm bg-transparent px-1.5 py-1 text-sm font-medium outline-none hover:bg-subtle focus:bg-panel focus:ring-2 focus:ring-ring/50"
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur();
           if (e.key === 'Escape') {
@@ -60,26 +93,33 @@ export function TopBar() {
           onClick={() => getDeckState().redo()}
         />
       </ToolbarGroup>
+      <InsertMenu />
       <SaveIndicator />
       <div className="ml-auto flex items-center gap-1">
-        <IconButtonTip
-          icon={Plus}
-          label="New presentation"
-          disabled={aiBusy}
-          onClick={() => {
-            const empty =
-              getDeckState().deck.slideOrder.length === 0 && getDeckState().messages.length === 0;
-            if (
-              empty ||
-              window.confirm('Start a new presentation? The current deck and chat will be cleared.')
-            )
-              newPresentation();
-          }}
-        />
+        <ThemeMenu />
+        <ExportMenu />
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!hasSlides}
+          onClick={() => present(false)}
+          title="Present from this slide (Shift+F5; F5 from the start)"
+        >
+          <Play strokeWidth={1.75} /> Present
+        </Button>
+        <Button size="sm" disabled={aiBusy} onClick={goToStart} className="px-3.5">
+          <Plus strokeWidth={2} /> New presentation
+        </Button>
         <IconButtonTip
           icon={scheme === 'dark' ? Sun : Moon}
           label={scheme === 'dark' ? 'Light mode' : 'Dark mode'}
           onClick={toggle}
+        />
+        <IconButtonTip
+          icon={panels.chat ? PanelRightClose : PanelRightOpen}
+          label={panels.chat ? 'Hide side panel' : 'Show side panel'}
+          shortcut={`${MOD} ]`}
+          onClick={() => getDeckState().setPanel('chat')}
         />
       </div>
     </header>

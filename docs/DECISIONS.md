@@ -194,6 +194,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D21. Export: native PPTX plus a print view
 
+- **Status:** Accepted; implementation details (fonts, fit, image framing, print scaling) in [D44](#d44-export-print-present-box-select-themes-deck-files).
 - **Decision:** PowerPoint export through pptxgenjs with native, editable charts and tables; PDF through a print-view route that uses the same `SlideRenderer`.
 - **Why:** Charts and tables stay real objects in PowerPoint, and the PDF matches the canvas exactly.
 - **Consequences:** Images are converted to base64 before export, so AI images come from CORS-safe sources and uploads are resized client-side.
@@ -298,7 +299,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D31. Collision-aware placement
 
-- **Status:** Accepted (2026-10-15). Details D7 and D9 (was an open item).
+- **Status:** Accepted (2026-10-15). Details D7 and D9 (was an open item). Slots trimmed around existing content, lead/heading slots and auto-shrink added in [D41](#d41-content-spacing-lead-slots-trimmed-slots-auto-shrink).
 - **Decision:** `placeElement` decides where a new element goes, in this order: an explicit bbox (clamped) → the preferred slot → the first free slot accepting the element's kind → the free spot nearest the requested position at the default size, then at 75% and 50% → overlap at the requested spot only if the slide is genuinely full. `findFreeSpot(slide, size, near, ignoreId)` searches a 40-unit grid ordered by distance from `near`, keeping the element's size (used for thumbnail drops and paste).
 - **Why:** The brief asks for collision-aware drops; an AI-added second chart shouldn't land on top of the first.
 - **Consequences:** Placement code runs in callers (tool layer, UI hooks), never inside `applyOp` (D24).
@@ -397,7 +398,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D39. Persistence and the StartScreen as built
 
-- **Status:** Accepted (2026-10-15). Details D20 (persistence) and the user journey (StartScreen, "+ New").
+- **Status:** Accepted (2026-10-15). Details D20 (persistence) and the user journey (StartScreen, "+ New"). Single workspace replaced by up to 5 projects, chat mode toggle and "Restore previous deck" removed in [D40](#d40-up-to-5-presentations-new-button-collapsible-panels-dark-slides).
 - **Decision:**
   - **One workspace in IndexedDB** (`idb-keyval`, database `ai-presentation-builder`): `{ version, deck, messages, savedAt }`. On load the deck is validated with `DeckSchema`; unreadable data is moved to a backup key instead of being overwritten by the next autosave, and the user gets the StartScreen.
   - **Autosave** subscribes to the store: debounced 600 ms after the last change, but never more than 2 s behind (an AI run changes the deck and chat continuously, which would otherwise postpone saving until it ends), plus a flush when the tab is hidden or closed. The top bar shows "Saving…", "Saved", or a red "Not saved" if storage fails.
@@ -407,3 +408,83 @@ When a decision changes during the build, the original record stays as written, 
   - **"+ New"** (top bar, confirm when there is content) clears the deck, chat and saved workspace and returns to the StartScreen. The sample-deck button moved from the top bar to the StartScreen and the empty chat.
 - **Why:** Refresh must restore the work, including a run interrupted by a reload; the first screen should say what the product does.
 - **Consequences:** Single deck only (multi-project stays a Day 2 nice-to-have). "Restore previous deck" lasts for the session only (the replaced deck is not persisted). Seven persistence tests (fake-indexeddb) and a browser check: start screen, rename + reload, "+ New" + reload, generate + reload, reload mid-generation + "Continue building".
+
+### D40. Up to 5 presentations, "New" button, collapsible panels, dark slides
+
+- **Status:** Accepted (2026-10-15). Amends D39 (persistence, StartScreen), D35 (chat modes), D17 (dark mode) and the Day 2 "multi-project" nice-to-have, which this delivers.
+- **Decision:**
+  - **Projects.** IndexedDB holds up to 5 presentations: an index (`projects`: id, title, slide count, updated time, first slide as cover), one record per project (`project:<id>`: deck + chat), and the open project's id. Saving moves a project to the top; a 6th evicts the least recently updated one (the StartScreen says "the 5 most recent are kept"). An empty deck with no chat is never saved. The D39 single-workspace record is migrated once.
+  - **StartScreen lists them** under the prompt ("Recent"): the first slide drawn by the real renderer, title, slide count, age; click to open, hover to delete (confirm). Reload returns to the open project; the StartScreen shows when none is open.
+  - **"New" button** in the top bar (and the "AI" mark, as "All presentations") returns to the StartScreen. The open project stays saved, so there is no confirm. The chat no longer has an Edit/New deck toggle: it edits the open deck, and builds a deck only when that deck is empty ("Start blank"). Generation therefore never replaces a deck with content, so "Restore previous deck" was removed.
+  - **Autosave across switches.** Autosave snapshots the project that changed; switching projects (a new deck id) is not an edit and is flushed first, so pending edits always land on the project they were made in.
+  - **Collapsible panels.** Top-bar toggles (and Ctrl/Cmd + [ / ]) hide the slides panel and the AI panel; the canvas widens to fill. The layout is remembered per browser (localStorage, like the color scheme).
+  - **Dark slides.** Slides follow the editor's scheme for display: theme `paper` has a dark counterpart `ink` (same fonts, sizes and roles; colors re-stepped; chart palette re-validated for the dark surface: lightness band, chroma, CVD worst ΔE 12.0, normal-vision 20.5, contrast ≥ 3:1). `getTheme(id, scheme)` picks it; export and print will use the deck's own theme. Slide frames get scheme-aware edge and shadow tokens (`--slide-edge`, `--slide-shadow`) so slides separate from the dark canvas. The scheme moved into the UI store so every component sees one value.
+- **Why:** Requested after the first full run: people come back to more than one deck, expect a clear "New", want room for the canvas, and dark mode should not leave bright white slides.
+- **Consequences:** 112 tests (persistence rewritten: round-trip, eviction to 5, empty not saved, invalid rejected, legacy migration, autosave debounce/maxWait/switch/error). Browser check: six decks created (one evicted), open from Recent, reload keeps the open project, delete, panels hide/show and survive reload, dark editor and StartScreen.
+
+### D41. Content spacing: lead slots, trimmed slots, auto-shrink
+
+- **Status:** Accepted (2026-10-15). Amends D31 (placement) and D9 (layout slots); closes the "auto-shrink" open item.
+- **Context:** Generated slides showed a subtitle drawn over the bullets ("Pre-money valuation" on top of the list) and a column subtitle cut off by a table. Cause: content layouts had no slot for a subtitle, so it went to a free spot at the top of the content area; a slot (body, left column) was then filled at its full size, ignoring what was already there. Text taller than its box was clipped.
+- **Decision:**
+  - **Lead and heading slots.** `content` and `chart-focus` get a one-line `lead` slot under the title (subtitle, 76 high); `two-column` gets `leftHeading` / `rightHeading`. The body, column and visual slots start below them (y 320). Whatever order the model adds things in, a lead never lands on the body.
+  - **Slots are trimmed to their free part** (`freePartOfSlot`): elements already inside a slot's area (hand-placed, AI-placed with coordinates, or in an overlapping slot) remove a vertical band plus a 24-unit gap; the largest remaining band is used, or the next slot if less than 120 units is left.
+  - **AI coordinates never stack.** Tools pass `avoidOverlap`: if the model's explicit box collides with existing content, the element keeps its size and moves to the nearest free spot. A person's explicit placement is never moved.
+  - **Auto-placed content stays out of the title band** (`CONTENT_TOP` 228) on layouts that have one.
+  - **Auto-shrink** (render time): a text box whose content doesn't fit is drawn at the largest size that fits, in 4% steps down to the theme minimum (22 units), measured on the real DOM after web fonts load. The stored size is unchanged, so a bigger box or shorter text returns to full size.
+- **Why:** Overlapping and clipped text is the most visible quality problem in generated decks.
+- **Consequences:** Three new layout tests (trim below an existing element, lead above body when added after it, AI collision moved / person's kept). A browser check of the three reported cases shows 0 overlaps and 0 clipped boxes. Decks generated before this keep their positions; regenerate or move elements by hand. PPTX export needs the same shrink (the fitted size will be passed through).
+
+### D42. Insert menu, data editors, floating toolbar
+
+- **Status:** Accepted (2026-10-15). Delivers the Day 2 editing items of the plan (insert menu with image upload, chart data and table editors in a drawer, floating toolbar). Side-panel behaviour and chart editor reworked in [D43](#d43-chart-editor-and-side-panel-fixes-navigation-chips).
+- **Decision:**
+  - **Insert ▾** (top bar): text box, bulleted list, bar / line / pie chart, table, image from the computer or a URL, rectangle / ellipse / line / arrow. Starter content comes from `starterElement` (lib); `insertElement` places it like AI-added content (free slot, else nearest free spot below the title band). If the active slide has no room, the element goes on a new slide right after it, in the same undo step, instead of covering content. A new chart or table opens its data editor at once.
+  - **Images** are downscaled in the browser to 1600 px on the long side (JPEG 0.85; PNG kept for transparency; SVG as is) before entering the deck, since every autosave writes the deck to IndexedDB and the PPTX embeds them. Images are never sent to `/api` (request contract).
+  - **Data editors** open in a drawer that replaces the AI panel while open (Esc or × closes; it closes itself if the element disappears). Chart: type, title, a category × series grid with add/remove rows and series (≤ 24 rows, ≤ 8 series), legend toggle; numbers are typed as text and parsed on commit, so "-" or "1." can be typed. Table: cell grid, add/remove rows and columns (≤ 20 × 10), header row toggle. Each committed field (blur or Enter) or structural change is one undo step. External changes (undo, AI edits) re-sync the draft. Double-clicking a chart opens its editor.
+  - **Floating toolbar** above the selection (flips below near the top), screen space beside the slide, hidden while dragging or editing text. Text: size −/+, bold, align, color (theme roles). Chart: bar/line/pie, Edit data. Table: Edit table. Image: replace, fill/fit. Shape: fill color. All: bring to front, send to back, lock, duplicate, delete.
+- **Why:** The reviewers' script edits chart data and table rows by hand, inserts elements and moves them; editors live where the data is, and every edit stays one op through `dispatch`.
+- **Consequences:** Two store tests (insert with free room; insert on a full slide adds a slide after it and leaves the slide untouched). Browser check: insert chart → drawer → edit value and category, add row and series, undo; toolbar chart type and text size/bold/align; insert table and edit a cell, add a column; upload a 2400 px PNG (stored at 1600 px); 0 overlapping elements on all slides afterwards. A bug found on the way: selecting a fresh wrapper object from the store (`findElement(...)`) re-rendered forever; components select the element itself.
+
+### D43. Chart editor and side-panel fixes; navigation; chips
+
+- **Status:** Accepted (2026-10-15). Amends D42 (drawer, chart editor), D39/D40 (navigation) and D11 (chip style). From review of the first build.
+- **Decision:**
+  - **Chart editor:** sections Type · Title · Axes (X and Y axis labels; hidden for pie, which has no axes) · Show (values on the chart; Legend only where a legend is drawn) · Data. The grid uses fixed columns (category 116, series 92) and scrolls sideways beyond two series; every cell has a `title` with its full text. A pie edits only its first series; the others are kept for switching back.
+  - **Legend rule in one place:** `legendAvailable(chart)` (pie, or two or more series) decides both whether the chart draws a legend and whether the editor offers the toggle. The legend now has its own line under the title, so a long legend no longer hides the title.
+  - **One right-hand panel.** The data editor replaces the AI chat at the same width (360). Opening it shows the panel if it was collapsed; collapsing the panel closes it ("Hide side panel").
+  - **The editor follows the selection:** selecting another chart or table switches it, clicking empty canvas or selecting anything else closes it.
+  - **Focus moves to the editor** on open (first data cell, selected), with a short slide-in and indigo edge, and the header names the slide ("Chart · slide 3").
+  - **Navigation:** the slides panel starts with "← All presentations" (plus the slide count); the top bar's "New presentation" is the primary dark pill. The deck title field grows with the window and shows the full title on hover.
+  - **Op chips are rectangular:** neutral background, saffron left edge (the AI's color stays as the accent), "Show all N" instead of a dead "+N more".
+- **Why:** Review feedback: missing axis controls, a panel that ignored the collapse toggle, truncated headings, no visible response to "Edit data", a legend toggle that did nothing, no obvious way back to the landing page.
+- **Consequences:** Browser check covers each item (focus on the first cell, 360 width both panels, axis label rendered, legend toggle shown for 2 series and hidden for 1, pie hides axes and extra series, deselect closes, collapse closes, "All presentations" returns to the landing page), in dark mode.
+
+### D44. Export, print, present, box select, themes, deck files
+
+- **Status:** Accepted (2026-10-15); amended by D45 (image-size pin, present-mode focus). Implements D21 and the Day 2 items "PPTX export + print view", "marquee select", "present mode", "JSON import/export", "themes"; resolves the "print view as a print-only container" open item.
+- **Decision — PowerPoint (.pptx):**
+  - **Pure mapping in `lib/export/pptx.js`** (deck → pptxgenjs calls, testable in Node), browser glue in `services/pptxExport.js`, pptxgenjs loaded on demand (its own 368 KB chunk).
+  - **Exact geometry.** The 1920 × 1080 artboard is PowerPoint's 13.333 × 7.5 in "wide" slide: 144 units = 1 in, 2 units = 1 pt. Boxes, font sizes, line height (`lineSpacingMultiple`), paragraph gaps and table padding convert with those rules; text boxes have zero inner margin, as on the canvas.
+  - **Fonts.** The web fonts aren't installed on most machines, and PowerPoint would substitute fonts of different widths, so the file names Cambria (titles) and Arial (text), which ship with Office. Text fit is **re-measured in the browser with those fonts** (metric-compatible fallbacks) and the fitted size is written, so a title that fit in Instrument Serif doesn't overflow in Cambria; `fit: shrink` is set as a PowerPoint-side backstop.
+  - **Native objects.** Charts are real, editable PowerPoint charts (bar, stacked, line, area, pie as a 55% doughnut) with the theme palette, title, legend rule (`legendAvailable`), axis titles and value labels; stacked bars use centred labels (outEnd corrupts the file). Tables are native tables with the same header fill, banding, borders and padding. Bullets are real bullets (not "•" characters). Speaker notes go into the notes pane.
+  - **Images** are drawn into a canvas at their box size with the canvas framing (cover/contain, 12-unit rounded corners) before embedding, so PowerPoint shows the same crop. A remote image whose site blocks cross-origin reads becomes a labeled placeholder and the user is told which.
+  - **Known differences** (documented, accepted): bullet dots use the text color (pptxgenjs can't color bullets); chart titles are centred by PowerPoint; the value axis picks its own maximum; text wraps by PowerPoint's own metrics.
+  - **QA:** the generated files pass the OOXML validator (schema, relationships, chart checks) and were rendered with LibreOffice side by side with the canvas for the sample deck and the spacing cases.
+- **Decision — PDF:** a print view (portal, only mounted while printing) renders every slide with `SlideRenderer` at 1280 × 720 CSS px per page, `@page` 13.333 × 7.5 in, margins 0, backgrounds forced. It uses CSS `zoom`, not a transform: Chromium's PDF output dropped or double-scaled the SVG charts inside a scaled transform. Ctrl/Cmd+P opens it instead of printing the editor. Text stays selectable and charts vector.
+- **Decision — Present:** fullscreen overlay, one slide scaled to the screen; → / Space / PageDown, ← / PageUp, Home / End, click to advance, Esc (or leaving fullscreen) exits; controls and cursor hide after 2 s. F5 from the start, Shift+F5 from the current slide. Editor shortcuts are off while presenting.
+- **Decision — Box select:** dragging from a slide's background draws a selection rectangle (screen-space overlay inside the frame, clamped to the slide, never in layout) and selects every unlocked element it touches; Shift adds. A press without 4 px of movement still deselects. It starts only on the background, never on an element or Moveable's handles, so it can't steal a drag or resize, and it stays within one slide (groups never span slides).
+- **Decision — Themes:** picker with Paper, Sand (warm light; dark display variant Ink) and Midnight (a dark deck). Our own colors, the same OFL fonts; every chart palette validated. Changing theme is one undoable op and applies to export.
+- **Decision — Deck files:** Export → Deck file (.json, `{ format, version, deck }`); "Open a deck file" on the StartScreen validates it with `DeckSchema` and opens it as a new project (fresh id).
+- **Third-party list** in `docs/THIRD_PARTY.md` (fonts OFL 1.1; libraries MIT / ISC / Apache-2.0; `sarvam-ai-sdk` declares no license, flagged).
+- **Consequences:** 6 export unit tests (geometry, colors, fit cap, bullets, chart rules, full write twice). Browser check: insert an uploaded image, box select 3 elements, switch to Sand, download .pptx (validated, rendered), print view (7 pages, unmounts after printing), present (F5, →→, Esc), deck file export and re-import.
+
+### D45. pptxgenjs advisory; present mode takes focus
+
+- **Status:** Accepted (2026-10-15). Amends D44 (export dependency, present mode).
+- **Context — the advisory:** `npm audit` reports two high-severity issues in `image-size` ≤ 2.0.2 (GHSA-5p2g-fcmc-qvqq, GHSA-w3rx-r6r6-pgpr: infinite loops parsing JXL/HEIF/ICNS files, a denial of service). pptxgenjs 4.0.1 declares `image-size ^1.2.1`, but none of its builds import it (its only size lookup is a Node-only `require('sizeof')`), our browser bundle doesn't contain it, and we always pass image data with explicit sizes.
+- **Decision:** keep pptxgenjs and pin the patched `image-size` 2.0.4 with npm `overrides` (scoped to pptxgenjs). `npm audit` reports 0 vulnerabilities.
+- **Why not replace pptxgenjs:** there is no maintained alternative that writes native, editable charts and tables in the browser (officegen is Node-only and unmaintained; pptx-automizer edits templates in Node). Writing OOXML ourselves with JSZip means weeks of chart XML for no security gain, since the flagged code never runs.
+- **Decision — present mode and editor state:** while presenting, the canvas's Moveable handles and floating toolbar unmount (Moveable's control box sits in a z-index 3000 layer and floated over the presentation). The selection is kept, so Esc returns to the same state. On entry, the focused editor element is blurred (an open text edit commits through its normal blur path) and focus moves to the presentation, so keys can't reach a text box behind it. The overlay sits at z-index 5000.
+- **Decision — F5 inside text:** inline editors stopped every keydown to keep typing away from canvas shortcuts, which also hid F5 from the app and let the browser reload the page mid-edit. `stopEditorKeys` lets F5 / Shift+F5 and Ctrl/Cmd+P through; the global handler checks them before the text-field guard.
+- **Consequences:** browser check: selected chart → Present shows no handles, focus on the presentation, handles return after Esc; mid text edit → F5 presents, the edit is saved, typed keys don't leak into the text.

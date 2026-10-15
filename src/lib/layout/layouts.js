@@ -16,6 +16,9 @@ const TITLE_BAR = {
 };
 const VISUAL = ['chart', 'table', 'image'];
 
+/** Top of the content area on layouts with a title band: auto-placed content stays below it. */
+export const CONTENT_TOP = 228;
+
 /** @type {Record<import('../schema/deck.js').Layout, { label: string, slots: { name: string, bbox: import('../schema/elements.js').BBox, accepts: string[], maxChars?: number }[] }>} */
 export const LAYOUT_DEFS = {
   title: {
@@ -56,9 +59,17 @@ export const LAYOUT_DEFS = {
     label: 'Content',
     slots: [
       TITLE_BAR,
+      // One-line lead under the title (a subtitle or key figure). Content starts below it, so a
+      // lead added before or after the body never overlaps it (D41).
+      {
+        name: 'lead',
+        bbox: { x: 96, y: 228, w: 1728, h: 76 },
+        accepts: ['subtitle'],
+        maxChars: 90,
+      },
       {
         name: 'body',
-        bbox: { x: 96, y: 260, w: 1728, h: 720 },
+        bbox: { x: 96, y: 320, w: 1728, h: 660 },
         accepts: ['body', 'caption', ...VISUAL],
         maxChars: 600,
       },
@@ -68,15 +79,28 @@ export const LAYOUT_DEFS = {
     label: 'Two columns',
     slots: [
       TITLE_BAR,
+      // Optional column headings, then the columns below them (D41).
+      {
+        name: 'leftHeading',
+        bbox: { x: 96, y: 228, w: 840, h: 76 },
+        accepts: ['subtitle'],
+        maxChars: 45,
+      },
+      {
+        name: 'rightHeading',
+        bbox: { x: 984, y: 228, w: 840, h: 76 },
+        accepts: ['subtitle'],
+        maxChars: 45,
+      },
       {
         name: 'left',
-        bbox: { x: 96, y: 260, w: 840, h: 720 },
+        bbox: { x: 96, y: 320, w: 840, h: 660 },
         accepts: ['body', ...VISUAL],
         maxChars: 320,
       },
       {
         name: 'right',
-        bbox: { x: 984, y: 260, w: 840, h: 720 },
+        bbox: { x: 984, y: 320, w: 840, h: 660 },
         accepts: ['body', ...VISUAL],
         maxChars: 320,
       },
@@ -88,13 +112,13 @@ export const LAYOUT_DEFS = {
       TITLE_BAR,
       {
         name: 'leftHeading',
-        bbox: { x: 96, y: 250, w: 840, h: 90 },
+        bbox: { x: 96, y: 236, w: 840, h: 90 },
         accepts: ['subtitle'],
         maxChars: 40,
       },
       {
         name: 'rightHeading',
-        bbox: { x: 984, y: 250, w: 840, h: 90 },
+        bbox: { x: 984, y: 236, w: 840, h: 90 },
         accepts: ['subtitle'],
         maxChars: 40,
       },
@@ -116,10 +140,16 @@ export const LAYOUT_DEFS = {
     label: 'Chart focus',
     slots: [
       TITLE_BAR,
-      { name: 'visual', bbox: { x: 96, y: 250, w: 1100, h: 740 }, accepts: VISUAL },
+      {
+        name: 'lead',
+        bbox: { x: 96, y: 228, w: 1728, h: 76 },
+        accepts: ['subtitle'],
+        maxChars: 90,
+      },
+      { name: 'visual', bbox: { x: 96, y: 320, w: 1100, h: 670 }, accepts: VISUAL },
       {
         name: 'body',
-        bbox: { x: 1260, y: 270, w: 564, h: 700 },
+        bbox: { x: 1260, y: 330, w: 564, h: 640 },
         accepts: ['body', 'caption'],
         maxChars: 280,
       },

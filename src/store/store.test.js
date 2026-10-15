@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { DeckSchema } from '../lib/schema/index.js';
 import { createSampleDeck } from '../lib/sampleDeck.js';
 import { makeDeck } from '../lib/test-fixtures.js';
-import { addBlankSlide, deleteSelection, duplicateSelection, moveSlideToIndex } from './actions.js';
+import { starterElement } from '../lib/factories.js';
+import {
+  addBlankSlide,
+  deleteSelection,
+  duplicateSelection,
+  insertElement,
+  moveSlideToIndex,
+} from './actions.js';
 import { createAppStore } from './index.js';
 
 const move = (elementId, x) => ({
@@ -127,5 +134,32 @@ describe('undo/redo reveal', () => {
     store.getState().redo();
     expect(store.getState().reveal).toMatchObject({ slideId: 's_ccccc', elementIds: ['el_chart'] });
     expect(store.getState().reveal.seq).toBeGreaterThan(0);
+  });
+});
+
+describe('insertElement (Insert menu)', () => {
+  it('places into free room on the active slide, selected, one undo step', () => {
+    const store = createAppStore(createSampleDeck());
+    const s0 = store.getState();
+    const slides = s0.deck.slideOrder.length;
+    const id = insertElement(store, starterElement('rect'));
+    const s = store.getState();
+    expect(s.selection).toEqual([id]);
+    expect(s.deck.slideOrder.length).toBe(slides);
+    s.undo();
+    expect(store.getState().deck).toEqual(s0.deck);
+  });
+
+  it('when the slide has no room, adds a slide after it instead of covering content', () => {
+    const store = createAppStore(createSampleDeck());
+    const deck = store.getState().deck;
+    const second = deck.slideOrder[1]; // title + full-width body: no room for a chart
+    store.getState().setActiveSlide(second);
+    const id = insertElement(store, starterElement('chart-bar'));
+    const after = store.getState().deck;
+    expect(after.slideOrder.length).toBe(deck.slideOrder.length + 1);
+    const newSlide = after.slideOrder[2];
+    expect(after.slides[newSlide].elements[id].type).toBe('chart');
+    expect(after.slides[second]).toEqual(deck.slides[second]);
   });
 });

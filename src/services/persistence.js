@@ -2,14 +2,21 @@ import { createStore, del, get, set } from 'idb-keyval';
 import { DeckSchema } from '../lib/schema/index.js';
 
 /*
- * Local persistence (D20): one workspace (deck + chat) in IndexedDB via idb-keyval.
- * IndexedDB, not localStorage: decks with uploaded images run to megabytes, and writes are async
- * so autosave never blocks typing. Everything stays in the browser; there is no server copy.
+ * Local persistence (D20, D40): up to MAX_PROJECTS presentations (deck + chat each) in IndexedDB
+ * via idb-keyval. IndexedDB, not localStorage: decks with uploaded images run to megabytes, and
+ * writes are async so autosave never blocks typing. Nothing leaves the browser.
+ *
+ *   projects         [{ id, title, slideCount, updatedAt, cover }]   newest first (the index)
+ *   project:<id>     { version, deck, messages, savedAt }
+ *   currentProject   id of the deck open in the editor (null on the StartScreen)
  */
 
-const KEY = 'workspace';
-const BACKUP_KEY = 'workspace:unreadable';
+export const MAX_PROJECTS = 5;
 export const WORKSPACE_VERSION = 1;
+const INDEX_KEY = 'projects';
+const CURRENT_KEY = 'currentProject';
+const LEGACY_KEY = 'workspace'; // single-deck format from D39
+const projectKey = (id) => `project:${id}`;
 const MAX_SAVED_MESSAGES = 100;
 
 let kv;
@@ -30,69 +37,109 @@ export function sanitizeMessages(messages) {
   });
 }
 
-/**
- * @returns {Promise<{ deck: object, messages: object[], savedAt: number } | null>}
- *   null when nothing usable is stored (first visit, an empty workspace, or unreadable data)
- */
-export async function loadWorkspace() {
-  let raw;
+const isEmpty = (deck, messages) => deck.slideOrder.length === 0 && messages.length === 0;
+
+/** Index entry: what the StartScreen needs to list a project without loading it. */
+const entryFor = (deck, updatedAt) => ({
+  id: deck.id,
+  title: deck.title,
+  slideCount: deck.slideOrder.length,
+  updatedAt,
+  cover: deck.slideOrder.length ? deck.slides[deck.slideOrder[0]] : null,
+  theme: deck.theme,
+});
+
+/** @returns {Promise<Array<ReturnType<typeof entryFor>>>} newest first */
+export async function listProjects() {
+  await migrateLegacy();
   try {
-    raw = await get(KEY, db());
+    return (await get(INDEX_KEY, db())) ?? [];
   } catch (err) {
     console.warn('[persistence] IndexedDB unavailable:', err);
-    return null;
+    return [];
   }
+}
+
+/** @returns {Promise<{ deck: object, messages: object[], savedAt: number } | null>} */
+export async function loadProject(id) {
+  const raw = await get(projectKey(id), db()).catch(() => null);
   if (!raw) return null;
   const parsed = DeckSchema.safeParse(raw.deck);
   if (raw.version !== WORKSPACE_VERSION || !parsed.success) {
-    // Keep what we couldn't read instead of overwriting it on the next autosave.
-    console.warn('[persistence] saved workspace is unreadable; kept as a backup', parsed.error);
-    await set(BACKUP_KEY, raw, db()).catch(() => {});
-    await del(KEY, db()).catch(() => {});
+    console.warn('[persistence] project is unreadable:', id, parsed.error);
     return null;
   }
   const messages = Array.isArray(raw.messages) ? sanitizeMessages(raw.messages) : [];
-  if (parsed.data.slideOrder.length === 0 && messages.length === 0) return null;
   return { deck: parsed.data, messages, savedAt: raw.savedAt ?? 0 };
 }
 
-export async function saveWorkspace({ deck, messages }) {
+/**
+ * Save one project and move it to the top of the index. Keeps the MAX_PROJECTS most recently
+ * updated; older ones are deleted (the StartScreen says so). An empty deck with no chat is not
+ * saved, so "Start blank" and abandoned starts don't fill the list.
+ */
+export async function saveProject({ deck, messages }) {
+  if (isEmpty(deck, messages)) return;
+  const savedAt = Date.now();
   await set(
-    KEY,
-    { version: WORKSPACE_VERSION, deck, messages: sanitizeMessages(messages), savedAt: Date.now() },
+    projectKey(deck.id),
+    { version: WORKSPACE_VERSION, deck, messages: sanitizeMessages(messages), savedAt },
     db(),
   );
+  const index = ((await get(INDEX_KEY, db())) ?? []).filter((p) => p.id !== deck.id);
+  const next = [entryFor(deck, savedAt), ...index];
+  for (const old of next.slice(MAX_PROJECTS)) await del(projectKey(old.id), db());
+  await set(INDEX_KEY, next.slice(0, MAX_PROJECTS), db());
 }
 
-export async function clearWorkspace() {
-  await del(KEY, db());
+export async function deleteProject(id) {
+  await del(projectKey(id), db());
+  const index = ((await get(INDEX_KEY, db())) ?? []).filter((p) => p.id !== id);
+  await set(INDEX_KEY, index, db());
+  if ((await getCurrentProjectId()) === id) await setCurrentProjectId(null);
+}
+
+export const getCurrentProjectId = () => get(CURRENT_KEY, db()).catch(() => null);
+export const setCurrentProjectId = (id) => set(CURRENT_KEY, id, db()).catch(() => {});
+
+/** One-time move of the D39 single-workspace record into the project list. */
+async function migrateLegacy() {
+  const legacy = await get(LEGACY_KEY, db()).catch(() => null);
+  if (!legacy) return;
+  await del(LEGACY_KEY, db());
+  if (legacy.version === WORKSPACE_VERSION && DeckSchema.safeParse(legacy.deck).success) {
+    await saveProject({ deck: legacy.deck, messages: legacy.messages ?? [] });
+    await setCurrentProjectId(legacy.deck.id);
+  }
 }
 
 /**
- * Save the deck and chat shortly after they change (debounced, at most `maxWait` behind during a
+ * Save the open project shortly after it changes (debounced, at most `maxWait` behind during a
  * continuous stream of changes such as an AI run), and right away when the tab is hidden or closed.
+ * Switching to another project is not a change: call `flush()` before switching so pending edits
+ * land on the project they belong to.
  *
  * @param {ReturnType<import('../store/index.js').createAppStore>} store
- * @param {{ delay?: number, maxWait?: number, save?: typeof saveWorkspace }} [opts]
+ * @param {{ delay?: number, maxWait?: number, save?: typeof saveProject }} [opts]
  */
-export function startAutosave(store, { delay = 600, maxWait = 2000, save = saveWorkspace } = {}) {
+export function startAutosave(store, { delay = 600, maxWait = 2000, save = saveProject } = {}) {
   let timer = null;
-  let dirty = false;
+  let pending = null; // { deck, messages } snapshot of the project that has unsaved changes
   let firstDirtyAt = 0; // a stream of changes (an AI run) would otherwise postpone saving forever
   let saving = Promise.resolve();
 
   const flush = () => {
     clearTimeout(timer);
     timer = null;
-    if (!dirty) return saving;
-    dirty = false;
+    if (!pending) return saving;
+    const snapshot = pending;
+    pending = null;
     firstDirtyAt = 0;
-    const { deck, messages, setSaveStatus } = store.getState();
-    setSaveStatus('saving');
+    store.getState().setSaveStatus('saving');
     saving = saving
-      .then(() => save({ deck, messages }))
+      .then(() => save(snapshot))
       .then(
-        () => !dirty && store.getState().setSaveStatus('saved'),
+        () => !pending && store.getState().setSaveStatus('saved'),
         (err) => {
           console.error('[persistence] save failed:', err);
           store.getState().setSaveStatus('error');
@@ -103,7 +150,8 @@ export function startAutosave(store, { delay = 600, maxWait = 2000, save = saveW
 
   const unsubscribe = store.subscribe((s, prev) => {
     if (s.deck === prev.deck && s.messages === prev.messages) return;
-    dirty = true;
+    if (s.deck.id !== prev.deck.id) return; // a project switch, not an edit
+    pending = { deck: s.deck, messages: s.messages };
     if (s.saveStatus !== 'unsaved') s.setSaveStatus('unsaved');
     const now = Date.now();
     firstDirtyAt ||= now;

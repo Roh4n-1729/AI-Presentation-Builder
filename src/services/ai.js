@@ -16,7 +16,6 @@ import { ApiError, postSse } from './sseClient.js';
 const POPULATE_CONCURRENCY = 2; // free tiers rate-limit; 2 parallel keeps "slides appear" lively
 
 let current = null; // { controller } of the run in flight (one at a time)
-const previousDecks = new Map(); // msgId -> deck replaced by a generation ("Restore previous deck")
 
 const ACTIVITY = {
   plan_deck: 'Planning the deck',
@@ -192,7 +191,6 @@ export async function generateDeck(store, { prompt, slideCount }) {
   const s = store.getState();
   const turnId = newTurnId();
   const msgId = newMessageId();
-  if (s.deck.slideOrder.length) previousDecks.set(msgId, s.deck);
   s.replaceDeck(createDeck({ id: `d_${Date.now().toString(36)}`, title: 'Untitled presentation' }));
   s.addMessage({ id: newMessageId(), role: 'user', text: prompt });
   s.addMessage({
@@ -257,17 +255,6 @@ export async function generateDeck(store, { prompt, slideCount }) {
     applier,
   });
 }
-
-/** Put back the deck a generation replaced (generation itself is not undoable: it's a new deck). */
-export function restorePreviousDeck(store, msgId) {
-  const prev = previousDecks.get(msgId);
-  if (!prev || store.getState().aiBusy) return;
-  store.getState().replaceDeck(prev);
-  previousDecks.delete(msgId);
-  store.getState().patchMessage(msgId, { restored: true });
-}
-
-export const hasPreviousDeck = (msgId) => previousDecks.has(msgId);
 
 /** Retry the slides that failed or were never filled (after an error or Stop). */
 export async function continueGeneration(store, msgId) {

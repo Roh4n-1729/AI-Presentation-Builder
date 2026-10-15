@@ -106,8 +106,6 @@ describe('generate -> edit through the real endpoints (mock model)', () => {
     expect(msg.progress).toEqual({ done: 3, total: 3 });
     expect(msg.chips[0].label).toBe('Planned 3 slides');
     expect(msg.chips.filter((c) => c.label.startsWith('Added text'))).toHaveLength(3);
-    // the replaced sample deck can come back
-    expect(ai.hasPreviousDeck(msg.id)).toBe(true);
   });
 
   it('edits: one agent turn = one undo entry, chips point at the changed element', async () => {

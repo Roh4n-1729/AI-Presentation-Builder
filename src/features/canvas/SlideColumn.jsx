@@ -17,7 +17,8 @@ export function SlideColumn() {
   const slideOrder = useDeck((s) => s.deck.slideOrder);
   const themeId = useDeck((s) => s.deck.theme);
   const { addBlankSlide } = useDeckActions();
-  const theme = getTheme(themeId);
+  const scheme = useDeck((s) => s.colorScheme);
+  const theme = getTheme(themeId, scheme);
   const reveal = useDeck((s) => s.reveal);
   const aiBusy = useDeck((s) => s.aiBusy);
   useActiveSlideTracker(paneRef, slideOrder);

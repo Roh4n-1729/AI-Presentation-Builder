@@ -5,7 +5,7 @@ A web-based AI presentation builder: describe a deck, the AI plans and fills it 
 > **Status:** Day 1 of 2 — scaffold. Sections marked _TBD_ are filled in as features land.
 
 - **Live:** _TBD_
-- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licenses)
 
 ## Reviewer quick path
 

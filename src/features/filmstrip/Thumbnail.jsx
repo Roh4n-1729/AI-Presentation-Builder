@@ -16,7 +16,7 @@ export function ThumbPreview({ slide, theme, className }) {
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-md bg-panel shadow-[0_0_0_1px_var(--border)]',
+        'relative overflow-hidden rounded-md bg-panel shadow-[var(--slide-edge)]',
         className,
       )}
       style={{ width: THUMB_W, height: ARTBOARD_H * THUMB_SCALE }}

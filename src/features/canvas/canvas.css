@@ -99,3 +99,23 @@
     background: transparent;
   }
 }
+
+/* Side panel editor: slide in and flash an indigo edge so the eye follows "Edit data" to it. */
+.drawer-enter {
+  animation: drawer-enter 420ms var(--ease-standard);
+}
+@keyframes drawer-enter {
+  0% {
+    transform: translateX(16px);
+    opacity: 0;
+    box-shadow: inset 3px 0 0 var(--user);
+  }
+  40% {
+    transform: none;
+    opacity: 1;
+    box-shadow: inset 3px 0 0 var(--user);
+  }
+  100% {
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}

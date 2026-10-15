@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D39), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D45), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -52,7 +52,13 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] `llm:probe` green on Sarvam (15:10)
 - [x] Persistence (IndexedDB autosave, restore deck + chat, continue after reload) + StartScreen + "+ New" (D39); 109 tests
 - [ ] Deploy with keys and check generate → edit on the deployed URL (checkpoint 17:00)
-- [ ] e2e reviewer-script test (Playwright) + golden-prompt eval
+- [x] Up to 5 projects + Recent on StartScreen, "New" button, collapsible panels (Ctrl+[ / ]), dark slides `ink` + slide shadows (D40); 112 tests
+- [x] Content spacing (D41): lead/heading slots, slots trimmed around existing content, AI boxes never overlap, text auto-shrink; 115 tests
+- [x] Insert menu (+ image upload ≤1600 px), chart/table data editor drawer, floating toolbar (D42); 117 tests
+- [x] Review fixes (D43): chart editor axes/options/grid, legend rule `legendAvailable`, one right panel (editor = chat width, follows selection, collapses), focus on open, All presentations link, primary New, rectangular chips
+- [x] Export (D44): PPTX (native charts/tables, Cambria/Arial with re-measured fit, framed images), PDF print view (zoom), present mode, box select, themes Paper/Sand/Midnight, deck .json export/import; `docs/THIRD_PARTY.md`; 123 tests
+- [x] pptxgenjs advisory pinned via overrides; present mode hides editor handles and takes focus; F5 works mid-edit (D45)
+- [ ] AI images (Pexels), README (reviewer path, DnD explanation, known gaps), deploy + reviewer script on live URL, speaker-notes UI
 
 ## Where things are
 
@@ -63,10 +69,16 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - Add shadcn components on a dev machine: `npx shadcn@latest add <name>` (components.json is JS mode)
 
 - Agent: `src/lib/agent` (tools, plan, prompts, context) · `api/_lib` (sse, guard, providers, runTurn) · client runs in `src/services/ai.js` (bound via `src/hooks/useAi.js`) · chat UI in `src/features/chat`
-- Persistence: `src/services/persistence.js` (load/save/autosave), `src/services/workspace.js` (boot, new, start blank/sample), bound in `src/hooks/useWorkspace.js`; screens switch on `ui.screen`
+- Persistence: `src/services/persistence.js` (projects index + records, autosave), `src/services/workspace.js` (boot, open/delete project, go to start, start blank/sample), bound in `src/hooks/useWorkspace.js`; screens switch on `ui.screen`
+- Color scheme + panels: `ui.colorScheme`, `ui.panels`; synced to `<html>` and localStorage by `useChromePrefs` (App); slides display `getTheme(id, scheme)`
 - Local `/api`: `scripts/vite-local-api.js` (dev-only Vite middleware); live check of the AI path: `npm run llm:probe`
+- Editing UI: insert menu `features/topbar/InsertMenu.jsx` (+ `hooks/useInsert.js`, `services/images.js`), drawer `features/drawer/*`, floating toolbar `features/canvas/FloatingToolbar.jsx`; actions `insertElement`, `patchElement`, `reorderElement`
+- Select store values, not fresh objects: `useDeck((s) => findElement(...)?.el)`, never `useDeck((s) => findElement(...))` (new object every call = infinite re-render)
 - Tests that span client and server: `tests/flow.test.js` (stubbed fetch → real handlers → mock model)
+
+- Export: `src/lib/export/pptx.js` (pure model + writer), `src/services/pptxExport.js` (fit, images, download, deck json), `features/present/{PrintView,PresentMode}.jsx`, `features/topbar/{ExportMenu,ThemeMenu}.jsx`; box select `features/canvas/useMarquee.js`
+- Print uses CSS `zoom`, never a transform (Chromium PDF drops SVG charts in scaled transforms)
 
 ## Open items (proposed, not yet decided)
 
-Auto-shrink as render-time measurement · print view as a print-only container (no router).
+None.

@@ -20,7 +20,7 @@ export const AssistantMessage = memo(function AssistantMessage({ msg, isLast }) 
   const ai = useAi();
   const aiBusy = useDeck((s) => s.aiBusy);
   // "Undo this" only while this turn is the newest history entry (D10, D25). A generation is
-  // undone with "Restore previous deck" instead (undoing it would just empty the new deck).
+  // not undone this way: undoing it would just empty the new deck.
   const canUndo = useDeck(
     (s) =>
       msg.kind !== 'generate' && !s.aiBusy && msg.turnId && s.past.at(-1)?.turnId === msg.turnId,
@@ -134,16 +134,6 @@ export const AssistantMessage = memo(function AssistantMessage({ msg, isLast }) 
           {canUndo && (
             <Button size="xs" variant="ghost" onClick={() => getDeckState().undo()}>
               <Undo2 strokeWidth={1.5} /> Undo this
-            </Button>
-          )}
-          {msg.kind === 'generate' && !msg.restored && ai.hasPreviousDeck(msg.id) && (
-            <Button
-              size="xs"
-              variant="ghost"
-              disabled={aiBusy}
-              onClick={() => ai.restorePreviousDeck(msg.id)}
-            >
-              Restore previous deck
             </Button>
           )}
         </div>

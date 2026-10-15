@@ -1,5 +1,5 @@
 import { LayoutTemplate } from 'lucide-react';
-import { useDeckActions } from '@/hooks/useDeck.js';
+import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { Button } from '@/primitives/ui/button.jsx';
 
 const GENERATE_EXAMPLES = [
@@ -15,7 +15,7 @@ const EDIT_EXAMPLES = [
 
 /** First-run state: what the AI can do, with prompts to start from. */
 export function EmptyChat({ deckEmpty, onExample }) {
-  const { loadSampleDeck } = useDeckActions();
+  const { startFromSample } = useWorkspace();
   const examples = deckEmpty ? GENERATE_EXAMPLES : EDIT_EXAMPLES;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 pt-10 pb-4">
@@ -35,7 +35,7 @@ export function EmptyChat({ deckEmpty, onExample }) {
           <button
             key={t}
             type="button"
-            onClick={() => onExample(t, deckEmpty ? 'generate' : 'edit')}
+            onClick={() => onExample(t)}
             className="rounded-lg border bg-panel px-3 py-2 text-left text-ui transition-colors duration-120 hover:border-ai/40 hover:bg-ai-soft"
           >
             {t}
@@ -43,8 +43,8 @@ export function EmptyChat({ deckEmpty, onExample }) {
         ))}
       </div>
       {deckEmpty && (
-        <Button variant="secondary" size="sm" className="self-start" onClick={loadSampleDeck}>
-          <LayoutTemplate strokeWidth={1.5} /> Load the sample deck
+        <Button variant="secondary" size="sm" className="self-start" onClick={startFromSample}>
+          <LayoutTemplate strokeWidth={1.5} /> Open the sample deck
         </Button>
       )}
     </div>

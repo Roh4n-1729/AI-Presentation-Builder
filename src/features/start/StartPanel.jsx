@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
-import { ArrowUp, FilePlus2, LayoutTemplate } from 'lucide-react';
+import { ArrowUp, FilePlus2, FolderOpen, LayoutTemplate } from 'lucide-react';
 import { useAi } from '@/hooks/useAi.js';
-import { getDeckState } from '@/hooks/useDeck.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
+import { RecentProjects } from './RecentProjects.jsx';
 
 const SLIDE_COUNTS = ['auto', 4, 5, 6, 7, 8, 10, 12];
 
@@ -37,7 +37,8 @@ const EXAMPLES = [
  */
 export function StartPanel() {
   const ai = useAi();
-  const { startBlank, startFromSample } = useWorkspace();
+  const { startBlank, startFromSample, prepareForGeneration, importDeckFile } = useWorkspace();
+  const fileRef = useRef(null);
   const [prompt, setPrompt] = useState('');
   const [count, setCount] = useState('auto');
   const taRef = useRef(null);
@@ -48,12 +49,12 @@ export function StartPanel() {
       taRef.current?.focus();
       return;
     }
-    getDeckState().setScreen('editor');
-    ai.generateDeck({ prompt: text, slideCount: count === 'auto' ? undefined : Number(count) });
+    const slideCount = count === 'auto' ? undefined : Number(count);
+    prepareForGeneration().then(() => ai.generateDeck({ prompt: text, slideCount }));
   };
 
   return (
-    <main className="start-wash relative flex h-full flex-col items-center overflow-y-auto px-4 pt-[14vh] pb-16">
+    <main className="start-wash relative flex h-full flex-col items-center overflow-y-auto px-4 pt-[12vh] pb-16">
       <div className="w-full max-w-[680px]">
         <h1 className="text-center font-display text-display">What are we presenting?</h1>
         <p className="mt-3 text-center text-sm text-muted-foreground">
@@ -131,8 +132,25 @@ export function StartPanel() {
           <Button variant="ghost" size="sm" onClick={startFromSample}>
             <LayoutTemplate strokeWidth={1.5} /> Open the sample deck
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>
+            <FolderOpen strokeWidth={1.5} /> Open a deck file
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              const res = await importDeckFile(file);
+              if (!res.ok) window.alert(res.message);
+            }}
+          />
         </div>
       </div>
+      <RecentProjects />
     </main>
   );
 }

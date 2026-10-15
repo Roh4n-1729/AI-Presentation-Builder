@@ -30,15 +30,20 @@ export const overlaps = (a, b) =>
  * @param {{ w: number, h: number }} size
  * @param {{ x: number, y: number }} [near]  preferred top-left corner
  * @param {string} [ignoreId]  element to ignore (the one being moved)
+ * @param {number} [minY]  don't place above this line (keeps content out of the title band)
  */
-export function searchFreeSpot(slide, size, near, ignoreId) {
+export function searchFreeSpot(slide, size, near, ignoreId, minY = 0) {
   const box = clampBBox({ x: 0, y: 0, ...size });
   const others = slide.elementOrder
     .filter((id) => id !== ignoreId)
     .map((id) => slide.elements[id].bbox);
 
   const candidates = [];
-  for (let y = SAFE_MARGIN; y + box.h <= ARTBOARD_H - SAFE_MARGIN; y += PLACEMENT_GRID) {
+  for (
+    let y = Math.max(SAFE_MARGIN, minY);
+    y + box.h <= ARTBOARD_H - SAFE_MARGIN;
+    y += PLACEMENT_GRID
+  ) {
     for (let x = SAFE_MARGIN; x + box.w <= ARTBOARD_W - SAFE_MARGIN; x += PLACEMENT_GRID) {
       candidates.push({ x, y });
     }

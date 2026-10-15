@@ -12,9 +12,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { legendAvailable } from '@/lib/chart.js';
 import { resolveColor, seriesColor } from '@/lib/theme/index.js';
 
-const TITLE_H = 64;
+const TITLE_H = 48; // title line
+const LEGEND_H = 40; // legend line, under the title (own row, so a long legend never hides the title)
 
 /**
  * A real Recharts chart (not an image). Explicit width/height = bbox, no ResponsiveContainer
@@ -36,8 +38,8 @@ export function ChartEl({ el, theme }) {
     chart.kind === 'pie'
       ? chart.categories.map((name, i) => ({ name, color: theme.chart[i % theme.chart.length] }))
       : chart.series.map((s, i) => ({ name: s.name, color: seriesColor(s, i, theme) }));
-  const showLegend = chart.showLegend && (chart.series.length > 1 || chart.kind === 'pie');
-  const titleH = chart.title || showLegend ? TITLE_H : 0;
+  const showLegend = chart.showLegend !== false && legendAvailable(chart);
+  const titleH = (chart.title ? TITLE_H : 0) + (showLegend ? LEGEND_H : 0);
   const w = bbox.w;
   const h = Math.max(bbox.h - titleH, 40);
 
@@ -149,45 +151,51 @@ export function ChartEl({ el, theme }) {
     <div
       style={{ width: '100%', height: '100%', pointerEvents: 'none', fontFamily: theme.fonts.body }}
     >
-      {titleH > 0 && (
-        <div style={{ height: TITLE_H, display: 'flex', alignItems: 'flex-start', gap: 32 }}>
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 30,
-              fontWeight: 600,
-              color: ink,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {chart.title}
-          </div>
-          {showLegend && (
-            <div
-              style={{
-                display: 'flex',
-                gap: 24,
-                fontSize: 22,
-                color: ink,
-                paddingTop: 6,
-                paddingRight: 16,
-                flexWrap: 'nowrap',
-              }}
+      {chart.title && (
+        <div
+          style={{
+            height: TITLE_H,
+            fontSize: 30,
+            fontWeight: 600,
+            color: ink,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {chart.title}
+        </div>
+      )}
+      {showLegend && (
+        <div
+          style={{
+            height: LEGEND_H,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 28,
+            fontSize: 22,
+            color: ink,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {legendItems.map((it, i) => (
+            <span
+              key={`${it.name}-${i}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}
             >
-              {legendItems.map((it, i) => (
-                <span
-                  key={`${it.name}-${i}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}
-                >
-                  <span style={{ width: 16, height: 16, borderRadius: 8, background: it.color }} />
-                  {it.name}
-                </span>
-              ))}
-            </div>
-          )}
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  flex: 'none',
+                  borderRadius: 8,
+                  background: it.color,
+                }}
+              />
+              {it.name}
+            </span>
+          ))}
         </div>
       )}
       {body}

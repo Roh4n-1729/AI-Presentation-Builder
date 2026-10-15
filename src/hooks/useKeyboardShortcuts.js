@@ -10,8 +10,24 @@ export function useKeyboardShortcuts() {
   const actions = useDeckActions();
   useEffect(() => {
     const onKey = (e) => {
-      if (isTypingTarget(e.target)) return;
       const s = getDeckState();
+      if (s.presenting) return; // present mode owns the keyboard
+      // Ctrl/Cmd+P prints the slides (the print view), not the editor screen.
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        if (!s.printing) s.setPrinting(true);
+        return;
+      }
+      // F5 presents from the start, Shift+F5 from the current slide (as in PowerPoint). Checked
+      // before the text-field guard: F5 types nothing, and letting it through reloads the page.
+      if (e.key === 'F5' && s.deck.slideOrder.length) {
+        e.preventDefault();
+        const index = e.shiftKey ? Math.max(0, s.deck.slideOrder.indexOf(s.activeSlideId)) : 0;
+        s.setPresenting({ index });
+        document.documentElement.requestFullscreen?.().catch(() => {});
+        return;
+      }
+      if (isTypingTarget(e.target)) return;
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
 
@@ -19,6 +35,12 @@ export function useKeyboardShortcuts() {
         e.preventDefault();
         if (e.shiftKey) s.redo();
         else s.undo();
+        return;
+      }
+      // Ctrl/Cmd + [ and ] toggle the slides and AI panels (D40)
+      if (mod && (e.key === '[' || e.key === ']')) {
+        e.preventDefault();
+        s.setPanel(e.key === '[' ? 'filmstrip' : 'chat');
         return;
       }
       if (mod && key === 'y') {

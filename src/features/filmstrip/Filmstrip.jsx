@@ -15,8 +15,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { getDeckState, useDeck, useDeckActions } from '@/hooks/useDeck.js';
+import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { ThumbPreview, Thumbnail } from './Thumbnail.jsx';
@@ -50,7 +51,10 @@ export function Filmstrip() {
   const slideOrder = useDeck((s) => s.deck.slideOrder);
   const themeId = useDeck((s) => s.deck.theme);
   const { moveSlideToIndex, addBlankSlide } = useDeckActions();
-  const theme = getTheme(themeId);
+  const { goToStart } = useWorkspace();
+  const aiBusy = useDeck((s) => s.aiBusy);
+  const scheme = useDeck((s) => s.colorScheme);
+  const theme = getTheme(themeId, scheme);
   const [draggingId, setDraggingId] = useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), // a click navigates, a drag reorders
@@ -61,6 +65,20 @@ export function Filmstrip() {
 
   return (
     <aside className="flex w-[244px] shrink-0 flex-col border-r bg-panel" aria-label="Slides">
+      <div className="flex h-11 shrink-0 items-center border-b px-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-0.5 rounded-md text-muted-foreground hover:text-foreground"
+          disabled={aiBusy}
+          onClick={goToStart}
+        >
+          <ArrowLeft strokeWidth={1.75} /> All presentations
+        </Button>
+        <span className="ml-auto pr-1 text-label text-faint tabular-nums">
+          {slideOrder.length} slide{slideOrder.length === 1 ? '' : 's'}
+        </span>
+      </div>
       <div className="flex-1 overflow-y-auto px-2 py-3">
         <DndContext
           sensors={sensors}

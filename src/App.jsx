@@ -1,3 +1,4 @@
+import { useChromePrefs } from './hooks/useColorScheme.js';
 import { useDeck } from './hooks/useDeck.js';
 import { useWorkspaceBoot } from './hooks/useWorkspace.js';
 import { TooltipProvider } from './primitives/ui/tooltip.jsx';
@@ -6,6 +7,7 @@ import { StartScreen } from './screens/StartScreen.jsx';
 
 export default function App() {
   useWorkspaceBoot();
+  useChromePrefs();
   const screen = useDeck((s) => s.screen);
   return (
     <TooltipProvider delayDuration={300}>

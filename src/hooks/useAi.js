@@ -6,9 +6,6 @@ const BOUND = {
   runEdit: (text) => ai.runEdit(appStore, text),
   generateDeck: (opts) => ai.generateDeck(appStore, opts),
   continueGeneration: (msgId) => ai.continueGeneration(appStore, msgId),
-  restorePreviousDeck: (msgId) => ai.restorePreviousDeck(appStore, msgId),
-  /** Whether a generation replaced a deck that "Restore previous deck" can bring back. */
-  hasPreviousDeck: (msgId) => ai.hasPreviousDeck(msgId),
   stop: () => ai.stopAi(),
 };
 export const useAi = () => BOUND;

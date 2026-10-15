@@ -1,0 +1,57 @@
+/* Print view (D44): only the slides print; the editor is hidden on paper. */
+.print-root {
+  position: fixed;
+  left: -100000px; /* off screen while the dialog is open; laid out so auto-shrink can measure */
+  top: 0;
+}
+.print-page {
+  position: relative;
+  overflow: hidden;
+  break-after: page;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.print-scaler {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+}
+@page {
+  size: 13.333in 7.5in;
+  margin: 0;
+}
+@media print {
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+  html,
+  body {
+    background: none !important;
+    height: auto !important;
+  }
+  .print-root {
+    position: static;
+  }
+}
+
+/* Present mode: the slide fills the screen; the cursor hides when idle. */
+.present-root {
+  position: fixed;
+  inset: 0;
+  z-index: 5000; /* above Moveable (3000) and menus, in case anything editor-side is still open */
+  background: #000;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+.present-root.idle {
+  cursor: none;
+}
+.present-root .present-hud {
+  transition: opacity 240ms var(--ease-standard);
+}
+.present-root.idle .present-hud {
+  opacity: 0;
+}
