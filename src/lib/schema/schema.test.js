@@ -35,6 +35,15 @@ describe('ElementSchema', () => {
     expect(ElementSchema.safeParse(table).success).toBe(false);
   });
 
+  it('rejects non-finite numbers (z.number() does this by default in Zod 4)', () => {
+    expect(
+      ElementSchema.safeParse({ ...chart, bbox: { ...chart.bbox, x: Infinity } }).success,
+    ).toBe(false);
+    expect(ElementSchema.safeParse({ ...chart, bbox: { ...chart.bbox, w: NaN } }).success).toBe(
+      false,
+    );
+  });
+
   it('rejects unknown element types and malformed ids', () => {
     expect(ElementSchema.safeParse({ ...chart, type: 'video' }).success).toBe(false);
     expect(ElementSchema.safeParse({ ...chart, id: 'chart-1' }).success).toBe(false);

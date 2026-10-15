@@ -12,11 +12,11 @@ const id = z.string().regex(ELEMENT_ID, 'element ids look like el_ab3cd');
 const color = z.string().min(1).max(32); // role ('accent') or hex ('#4250d5'); resolveColor falls back
 
 export const BBoxSchema = z.object({
-  x: z.number().finite(),
-  y: z.number().finite(),
-  w: z.number().finite().positive(),
-  h: z.number().finite().positive(),
-  rotation: z.number().finite().optional(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number().positive(),
+  h: z.number().positive(),
+  rotation: z.number().optional(),
 });
 
 const base = {
@@ -74,7 +74,7 @@ export const ChartSpecSchema = z
       .array(
         z.object({
           name: z.string().min(1).max(60),
-          values: z.array(z.number().finite()),
+          values: z.array(z.number()),
           color: color.optional(),
         }),
       )
