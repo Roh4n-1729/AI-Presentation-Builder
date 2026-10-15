@@ -1,12 +1,183 @@
-/* Temporary base styles; replaced by Tailwind v4 + design tokens in the design-system step. */
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Dark mode = `.dark` on <html> (set by useColorScheme), not the media query, so the user can toggle. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens (§8c / D17). Raw palette first, then the semantic names shadcn components expect.
+ *   Indigo (--user) marks the user: selection, focus, active tool.
+ *   Saffron (--ai) marks the AI: progress, glow on elements it changed, op chips.
+ * The slide renderer does NOT use these: slides read their own theme (src/lib/theme).
+ */
+:root {
+  --radius: 0.625rem; /* 10px panels/menus; inputs use radius-sm (6px) */
+
+  /* chrome surfaces & ink */
+  --background: #fcfcfc;
+  --panel: #ffffff;
+  --subtle: #f5f5f5;
+  --canvas: #f0f0f0; /* the area behind slides */
+  --foreground: #1f1f1f;
+  --muted-foreground: #6b6b6b;
+  --faint: #9a9a9a;
+  --border: #e6e6e6;
+
+  /* accents */
+  --user: #4250d5;
+  --user-soft: #eceefc;
+  --ai: #e96c2f;
+  --ai-soft: #fdeee6;
+
+  /* semantic status (kept apart from the two accents) */
+  --success: #1f8a4c;
+  --warning: #b7791f;
+  --destructive: #d13d3d;
+
+  /* shadcn semantic mapping */
+  --card: var(--panel);
+  --card-foreground: var(--foreground);
+  --popover: var(--panel);
+  --popover-foreground: var(--foreground);
+  --primary: #2a2c33; /* dark pill */
+  --primary-foreground: #fafafa;
+  --secondary: var(--subtle); /* light pill */
+  --secondary-foreground: var(--foreground);
+  --muted: var(--subtle);
+  --accent: #efefef; /* hover background for ghost/menu items */
+  --accent-foreground: var(--foreground);
+  --input: var(--border);
+  --ring: var(--user);
+
+  /* elevation: only floating things (toolbar, menus, drawer) get a shadow */
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px rgb(0 0 0 / 0.08);
+  --shadow-pill: inset 0 1px 0 rgb(255 255 255 / 0.14), 0 1px 2px rgb(0 0 0 / 0.18);
+  --shadow-pill-light: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 2px rgb(0 0 0 / 0.06);
+
+  color-scheme: light;
 }
-body {
-  font-family: system-ui, 'Segoe UI', sans-serif;
-  color: #1f1f1f;
-  background: #fcfcfc;
+
+.dark {
+  --background: #111114;
+  --panel: #18181c;
+  --subtle: #222228;
+  --canvas: #0b0b0e;
+  --foreground: #ededed;
+  --muted-foreground: #a0a0a8;
+  --faint: #6c6c74;
+  --border: #2a2a30;
+
+  --user: #7b86f0;
+  --user-soft: #1e2140;
+  --ai: #f08a52;
+  --ai-soft: #3a2116;
+
+  --success: #3fb27a;
+  --warning: #d9a03f;
+  --destructive: #e5605f;
+
+  --primary: #ededed; /* the dark pill turns light */
+  --primary-foreground: #111114;
+  --accent: #26262c;
+
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.5);
+  --shadow-pill: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-pill-light: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+
+  color-scheme: dark;
+}
+
+/* Expose tokens as Tailwind utilities: bg-panel, text-muted-foreground, border-border, bg-user… */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-subtle: var(--subtle);
+  --color-canvas: var(--canvas);
+  --color-faint: var(--faint);
+  --color-user: var(--user);
+  --color-user-soft: var(--user-soft);
+  --color-ai: var(--ai);
+  --color-ai-soft: var(--ai-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-float: var(--shadow-float);
+  --shadow-pill: var(--shadow-pill);
+  --shadow-pill-light: var(--shadow-pill-light);
+}
+
+@theme {
+  --font-sans: 'Geist', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', monospace;
+  --font-display: 'Instrument Serif', Georgia, serif;
+
+  /* chrome type scale: 12 · 13 · 14 · 16 · 20 · 28 · 44 (xs, ui, sm, base, xl, 3xl-ish, display) */
+  --text-label: 0.75rem;
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.02em;
+  --text-ui: 0.8125rem;
+  --text-ui--line-height: 1.25rem;
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.02em;
+
+  /* motion: one easing, three durations (120 hover/press, 180 open/close, 240 AI move) */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --animate-ai-glow: ai-glow 900ms var(--ease-standard);
+
+  @keyframes ai-glow {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--ai) 55%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 14px transparent;
+    }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background font-sans text-sm text-foreground antialiased;
+  }
+}
+
+/* Motion is decoration: honor the OS setting by making it instant. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

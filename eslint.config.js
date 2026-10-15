@@ -49,6 +49,11 @@ export default defineConfig([
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
   },
   {
+    // shadcn-generated components export helpers (e.g. buttonVariants) next to components.
+    files: ['src/primitives/ui/**/*.jsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
     files: ['api/**/*.js', 'scripts/**/*.js', '*.config.js'],
     languageOptions: { globals: { ...globals.node } },
   },
