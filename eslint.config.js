@@ -87,6 +87,48 @@ export default defineConfig([
     },
   },
   {
+    // features reach the store and services only through hooks (D19, D26).
+    files: ['src/features/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/store/*', '@/services/*', '**/store/**', '**/services/**'],
+              message: 'Features use hooks (src/hooks) to reach the store and services.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // primitives are dumb UI: no store, hooks, features or services.
+    files: ['src/primitives/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@/store/*',
+                '@/services/*',
+                '@/hooks/*',
+                '@/features/*',
+                '**/store/**',
+                '**/hooks/**',
+                '**/features/**',
+              ],
+              message: 'Primitives are dumb UI blocks: props in, markup out.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // api/ may import only src/lib (plus npm packages like ai, zod).
     files: ['api/**/*.js'],
     rules: {

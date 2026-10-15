@@ -1,0 +1,93 @@
+/* Canvas mechanics that depend on runtime state classes (Moveable, drag); everything else is Tailwind. */
+
+.artboard-scaler {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+}
+
+/* Clip slide content, except while dragging, so an element can visibly travel out of its slide. */
+.slide-frame .artboard {
+  overflow: hidden;
+  border-radius: 6px;
+}
+.slide-frame.dragging {
+  z-index: 5;
+}
+.slide-frame.dragging .artboard {
+  overflow: visible;
+}
+
+/* Gotcha 7: no text-selection highlight while dragging; edit mode opts back in. */
+.artboard {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.artboard [contenteditable='true'] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Hover hint on editable elements (artboard units: scaled down with the slide). */
+.slide-frame .el:hover {
+  outline: 3px solid color-mix(in srgb, var(--user) 45%, transparent);
+  outline-offset: 2px;
+}
+.slide-frame.dragging .el:hover {
+  outline: none;
+}
+
+/* Moveable in the user's color (indigo). */
+.moveable-control-box {
+  --moveable-color: var(--user);
+}
+.moveable-control-box .moveable-control {
+  background: #fff !important;
+  border: 2px solid var(--user) !important;
+  width: 12px !important;
+  height: 12px !important;
+  margin-top: -6px !important;
+  margin-left: -6px !important;
+}
+
+.drop-badge {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  font: 500 12px var(--font-sans);
+  background: var(--user);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+}
+
+/* Undo/redo reveal: a short indigo flash on what changed (screen-space overlay above the slide). */
+.reveal-flash {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;
+  animation: reveal-flash 1100ms var(--ease-standard) forwards;
+}
+@keyframes reveal-flash {
+  0% {
+    box-shadow:
+      0 0 0 3px var(--user),
+      0 0 0 10px color-mix(in srgb, var(--user) 25%, transparent);
+    background: color-mix(in srgb, var(--user) 12%, transparent);
+  }
+  70% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--user) 60%, transparent),
+      0 0 0 10px transparent;
+    background: transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+    background: transparent;
+  }
+}

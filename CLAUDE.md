@@ -34,21 +34,27 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 8. Cross-slide hit-test via `document.elementsFromPoint` → `[data-slide-drop]` / `[data-slide-frame]`; frame drop converts screen rect to target units.
 9. Recharts: explicit width/height = bbox (no ResponsiveContainer), `pointer-events: none`.
 10. After any store change that moves a selected element (gesture commit, undo/redo, AI op, scale change), call `moveableRef.current.updateRect()` in a layout effect keyed on `[slide, scale, targets]`, or the outline and handles stay at the old rect.
+11. Never mark drag state with `classList`: React re-renders (e.g. active slide changing while scrolling) rewrite `className`. Keep it in the store (`draggingSlideId`, `dropTarget`).
+12. Scrolling mid-drag: Moveable `scrollable` + `scrollContainer` getter (a child's layout effect runs before the parent's ref is attached) + `checkScrollEvent`; replay a `mousemove` at the last pointer after scroll so the element follows a still cursor (D34).
 
 ## Current status
 
 - [x] Scaffold, tooling (ESLint layer rules, Prettier, husky + lint-staged, Vitest, CI), `/api/hello`, `/api/sse-test`, Moveable verified on React 19; deployed (Vercel, bom1), SSE streams unbuffered, Stop aborts
 - [x] Design system: Tailwind v4 tokens (light/dark), Geist / Geist Mono / Instrument Serif, shadcn button/tooltip/dropdown-menu/kbd in JS, `IconButtonTip`, `ToolbarGroup`, `useColorScheme`, slide theme `paper` (D32)
 - [x] `lib/`: schema v2 (Zod), ops (D24, D30), layout slots + collision-aware placement (D31), theme roles + `resolveColor`; 53 tests
-- [ ] Store + canvas/filmstrip port → deploy (checkpoint 13:00)
+- [x] Store (vanilla Zustand, D25 grouping, actions) + canvas/filmstrip port (D33); sample deck loads on start; 63 unit tests, 16 browser checks
+- [x] Canvas fixes from testing: drag while scrolling + edge auto-scroll, drop ring, undo/redo reveal (D34); 69 unit tests, 33 browser checks
+- [ ] Deploy canvas (checkpoint 13:00)
 - [ ] Sarvam smoke test; `/api/plan`, `/api/populate`, `/api/agent`; chat (checkpoint 17:00)
 
 ## Where things are
 
+- Store: `src/store` (`appStore`, `createAppStore`, `actions.js`); components read it via `src/hooks/useDeck.js` (`useDeck`, `getDeckState`, `useDeckActions`)
+- Renderer: `src/features/slide` (props only + `SlideInteractionContext`); canvas: `src/features/canvas`; filmstrip: `src/features/filmstrip`
 - Ops: `src/lib/ops` (`applyOp`, `OpError`, `findElement`) · schemas: `src/lib/schema` · placement: `src/lib/layout` (`placeElement`, `reflowLayout`, `findFreeSpot`, `LAYOUT_DEFS`) · slide themes: `src/lib/theme` · factories: `src/lib/factories.js`
 - UI kit: `src/primitives/ui/*` (shadcn, JS), `src/primitives/cn.js`, tokens in `src/styles/index.css` (`bg-panel`, `text-muted-foreground`, `bg-user`, `bg-ai`, `text-ui`, `text-label`, `font-display`, `shadow-float`, `ease-standard`)
 - Add shadcn components on a dev machine: `npx shadcn@latest add <name>` (components.json is JS mode)
 
 ## Open items (proposed, not yet decided)
 
-Flat tool input schemas (no unions) for provider portability · `plan_deck` returns per-slide intent/key points/visual · filmstrip insertion line · auto-shrink as render-time measurement · print view as a print-only container (no router) · client-side request size guard (Vercel body limit 4.5 MB) · per-IP rate limit is best-effort on serverless.
+Flat tool input schemas (no unions) for provider portability · `plan_deck` returns per-slide intent/key points/visual · auto-shrink as render-time measurement · print view as a print-only container (no router) · client-side request size guard (Vercel body limit 4.5 MB) · per-IP rate limit is best-effort on serverless.
