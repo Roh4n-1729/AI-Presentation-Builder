@@ -1,6 +1,6 @@
 import { applyPatches, enablePatches, produceWithPatches } from 'immer';
 import { applyOps, findElement, OpError } from '../lib/ops/index.js';
-import { revealTarget } from './affected.js';
+import { revealTarget, touchedIds } from './affected.js';
 
 enablePatches();
 
@@ -29,6 +29,19 @@ export function reconcileUi(state, deck) {
 }
 
 let revealSeq = 0;
+let flashSeq = 0;
+
+/** Record which elements an AI op touched so their slide can glow them (saffron = the AI, D17). */
+function flashFor(prev, deck, patches) {
+  const { slideIds, elementIds } = touchedIds(patches);
+  const next = { ...prev };
+  for (const sid of slideIds) {
+    if (!deck.slides[sid]) continue;
+    const ids = elementIds.filter((id) => deck.slides[sid].elements[id]);
+    if (ids.length) next[sid] = { elementIds: ids, seq: ++flashSeq };
+  }
+  return next;
+}
 
 /**
  * After undo/redo, show what changed: select the affected elements (on one slide) and publish a
@@ -55,6 +68,8 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
   revision: 0, // bumps on every change; autosave watches it
   /** last undo/redo target: { slideId, elementIds, label, seq } (canvas scrolls + flashes it) */
   reveal: null,
+  /** elements the AI just changed, per slide: { [slideId]: { elementIds, seq } } (saffron glow) */
+  aiFlash: {},
   lastError: null,
 
   /**
@@ -121,13 +136,15 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
         revision: s.revision + 1,
         lastError: null,
         ...reconcileUi(s, next),
+        ...(source === 'ai' ? { aiFlash: flashFor(s.aiFlash, next, patches) } : {}),
       };
     });
     return { ok: true, changed: true, historyEntryId: entryId };
   },
 
   undo() {
-    const { past, deck } = get();
+    const { past, deck, aiBusy } = get();
+    if (aiBusy) return false; // D10: no undo while an AI turn is still streaming
     const entry = past.at(-1);
     if (!entry) return false;
     const next = applyPatches(deck, entry.inversePatches);
@@ -143,7 +160,8 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
   },
 
   redo() {
-    const { future, deck } = get();
+    const { future, deck, aiBusy } = get();
+    if (aiBusy) return false;
     const entry = future[0];
     if (!entry) return false;
     const next = applyPatches(deck, entry.patches);
@@ -166,6 +184,8 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
       future: [],
       revision: s.revision + 1,
       lastError: null,
+      reveal: null,
+      aiFlash: {},
       selection: [],
       editingId: null,
       activeSlideId: deck.slideOrder[0] ?? null,
@@ -173,4 +193,16 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
   },
 
   clearError: () => set({ lastError: null }),
+
+  /** Point the user at something (op chip click): select it, scroll to it, flash it. */
+  showInCanvas({ slideId, elementIds = [], label = '' }) {
+    const deck = get().deck;
+    if (!slideId || !deck.slides[slideId]) return;
+    const ids = elementIds.filter((id) => deck.slides[slideId].elements[id]);
+    set({
+      selection: ids,
+      editingId: null,
+      reveal: { slideId, elementIds: ids, label, seq: ++revealSeq },
+    });
+  },
 });

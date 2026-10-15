@@ -66,23 +66,31 @@
   box-shadow: var(--shadow-float);
 }
 
-/* Undo/redo reveal: a short indigo flash on what changed (screen-space overlay above the slide). */
+/*
+ * Undo/redo reveal: a short indigo flash on what changed (screen-space overlay above the slide).
+ * `.ai-flash` reuses it in saffron for elements an AI op just changed (--flash is read per element).
+ */
 .reveal-flash {
+  --flash: var(--user);
   position: absolute;
   z-index: 15;
   pointer-events: none;
   animation: reveal-flash 1100ms var(--ease-standard) forwards;
 }
+.reveal-flash.ai-flash {
+  --flash: var(--ai);
+  animation-duration: 1600ms;
+}
 @keyframes reveal-flash {
   0% {
     box-shadow:
-      0 0 0 3px var(--user),
-      0 0 0 10px color-mix(in srgb, var(--user) 25%, transparent);
-    background: color-mix(in srgb, var(--user) 12%, transparent);
+      0 0 0 3px var(--flash),
+      0 0 0 10px color-mix(in srgb, var(--flash) 25%, transparent);
+    background: color-mix(in srgb, var(--flash) 12%, transparent);
   }
   70% {
     box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--user) 60%, transparent),
+      0 0 0 3px color-mix(in srgb, var(--flash) 60%, transparent),
       0 0 0 10px transparent;
     background: transparent;
   }

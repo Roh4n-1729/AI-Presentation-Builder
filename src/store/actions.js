@@ -1,6 +1,7 @@
 import { elementId as newElementId, slideId as newSlideId } from '../lib/ids.js';
 import { findElement } from '../lib/ops/index.js';
 import { createSlide } from '../lib/factories.js';
+import { createSampleDeck } from '../lib/sampleDeck.js';
 
 /*
  * Composite user actions: turn an intent into fully-resolved ops (fresh ids, concrete boxes),
@@ -97,4 +98,9 @@ export function renameSlide(store, slideId, title) {
   return store
     .getState()
     .dispatch({ type: 'update_slide', slideId, patch: { title } }, { label: 'Rename slide' });
+}
+
+/** Safety net (D23): the whole editor works without any AI provider. Replaces the deck. */
+export function loadSampleDeck(store) {
+  store.getState().replaceDeck(createSampleDeck());
 }

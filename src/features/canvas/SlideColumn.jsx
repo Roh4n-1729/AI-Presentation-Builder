@@ -3,6 +3,7 @@ import { LayoutTemplate } from 'lucide-react';
 import { useActiveSlideTracker } from '@/hooks/useActiveSlideTracker.js';
 import { useDeck, useDeckActions } from '@/hooks/useDeck.js';
 import { useFitScale } from '@/hooks/useFitScale.js';
+import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { InsertBetween } from './InsertBetween.jsx';
@@ -18,6 +19,7 @@ export function SlideColumn() {
   const { addBlankSlide } = useDeckActions();
   const theme = getTheme(themeId);
   const reveal = useDeck((s) => s.reveal);
+  const aiBusy = useDeck((s) => s.aiBusy);
   useActiveSlideTracker(paneRef, slideOrder);
 
   // Undo/redo: bring the changed slide into view (minimal scroll; nothing if already visible).
@@ -34,12 +36,14 @@ export function SlideColumn() {
       data-scroll-column
       className="flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto bg-canvas px-16 pt-10 pb-32"
     >
-      {slideOrder.length === 0 ? (
+      {slideOrder.length === 0 && aiBusy ? (
+        <PlanningPlaceholder scale={scale} />
+      ) : slideOrder.length === 0 ? (
         <div className="mt-32 flex max-w-sm flex-col items-center gap-3 text-center">
           <LayoutTemplate className="size-10 text-faint" strokeWidth={1.25} />
           <p className="font-display text-[28px] leading-tight">No slides yet</p>
           <p className="text-ui text-muted-foreground">
-            Add a blank slide, or ask the AI to build a deck.
+            Add a blank slide, or describe a deck in the chat and the AI builds it.
           </p>
           <Button variant="secondary" onClick={() => addBlankSlide(null)}>
             Add a slide
@@ -53,6 +57,26 @@ export function SlideColumn() {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+/** While the AI plans a new deck (before any slide exists): ghost frames in the AI's color. */
+function PlanningPlaceholder({ scale }) {
+  return (
+    <div className="flex flex-col items-center gap-10" aria-live="polite">
+      <p className="text-ui text-muted-foreground">Planning the outline…</p>
+      {[0, 1].map((i) => (
+        <div
+          key={i}
+          className="animate-pulse rounded-md border border-dashed border-ai/40 bg-ai-soft/40"
+          style={{
+            width: ARTBOARD_W * scale,
+            height: ARTBOARD_H * scale,
+            animationDelay: `${i * 200}ms`,
+          }}
+        />
+      ))}
     </div>
   );
 }

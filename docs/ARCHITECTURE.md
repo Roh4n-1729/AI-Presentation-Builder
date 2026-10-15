@@ -58,9 +58,33 @@ flowchart TD
 
 All geometry is in a fixed 1920×1080 artboard, CSS-scaled to the screen. 144 units = 1 inch, so 1920 units is exactly a 16:9 PowerPoint slide width ([D5](DECISIONS.md#d5-fixed-19201080-artboard)).
 
+## Tool → op mapping
+
+Tools live in `src/lib/agent/tools.js`. Each resolves its flat input into ops, applies them to the server's working copy and emits them ([D35](DECISIONS.md#d35-the-agent-as-built)).
+
+| Tool                                                           | Ops emitted                                                                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `plan_deck` (generation only)                                  | `update_deck` (title) + one `add_slide` per planned slide (title element)                         |
+| `add_slide`                                                    | `add_slide` with a title element; `afterSlideId` `"START"` = first                                |
+| `update_slide`, `delete_slide`, `reorder_slides`               | same-named op                                                                                     |
+| `duplicate_slide`                                              | `duplicate_slide` with a fresh `newSlideId` and `idMap`                                           |
+| `change_layout`                                                | `change_layout` with `placements` from `reflowLayout` (slotted elements reflow, hand-placed stay) |
+| `add_text`, `add_chart`, `add_table`, `add_image`, `add_shape` | `add_element` with a fresh id and a box from `placeElement`                                       |
+| `update_element`, `update_elements`                            | `update_element` per element (flat fields mapped to the element's patch)                          |
+| `delete_element`, `reorder_elements`                           | same-named op                                                                                     |
+| `move_element`                                                 | `move_element` (box, or `toSlideId` + `findFreeSpot`; `copy` adds `newId`)                        |
+| `resize_element`                                               | `update_element` with the new `bbox`                                                              |
+| `update_chart_data`, `change_chart_type`                       | `update_element` on the chart                                                                     |
+| `get_slide`, `finish_turn`                                     | none (read / end of turn)                                                                         |
+
+## Turn lifecycle
+
+1. The client builds the request from the store (`toRequestDeck`: no image data) and POSTs it; the response is SSE.
+2. The server validates the body, picks the first provider with a key and runs `streamText` with the tools. Events: `status` (provider, fallback), `text` (assistant text), `tool` (start/done/error), `op` (resolved ops for one tool), `error`, `done` (summary, suggestions, usage).
+3. The client queues `op` events and dispatches them once per animation frame (source `ai`, the turn's id), so the whole turn is one undo entry. Each tool's ops become a chip on the chat message.
+4. Stop aborts the fetch; the abort reaches the model call. Ops already applied stay.
+
 ## Sections to come
 
-- Tool → op mapping (see [D24](DECISIONS.md#d24-ops-are-id-anchored-and-fully-resolved) for now)
-- Streaming protocol and turn lifecycle
 - Drag-and-drop and cross-slide hit-testing
 - Export pipeline

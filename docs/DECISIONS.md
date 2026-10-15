@@ -112,7 +112,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D11. Granular tools, no regenerate path
 
-- **Status:** Accepted; tool → op mapping and naming fixed in [D24](#d24-ops-are-id-anchored-and-fully-resolved).
+- **Status:** Accepted; tool → op mapping and naming fixed in [D24](#d24-ops-are-id-anchored-and-fully-resolved). Tool list as built (one add tool per element type, flat inputs) in [D35](#d35-the-agent-as-built).
 - **Decision:** Tools at slide, element and chart granularity (`add_slide`, `update_slide`, `delete_slide`, `duplicate_slide`, `reorder_slides`, `change_layout`, `add_element`, `update_element`, `update_elements` (batch), `delete_element`, `move_element`, `resize_element`, `reorder_elements`, `add_chart`, `update_chart_data`, `change_chart_type`), plus `get_slide` for detail and `finish_turn({ summary, suggestions })` to end every turn.
 - **Why:** Edits must be targeted patches. With no tool that rewrites the deck, the model cannot regenerate it. The batch tool keeps deck-wide edits ("make it more formal") to one call on rate-limited free tiers. `finish_turn` returns the chat summary and suggestions as structured data on any model.
 - **Consequences:**
@@ -122,6 +122,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D12. Two-phase generation, orchestrated by the client
 
+- **Status:** Accepted; concurrency (2) and retry granularity ("Retry empty slides") set in [D35](#d35-the-agent-as-built).
 - **Decision:** `/api/plan` forces a `plan_deck` call and creates titled skeleton slides immediately. The client then calls `/api/populate` per slide, 2–3 in parallel. Later edits go through `/api/agent`.
 - **Why:** Required by the brief, and practical: visible progress, short requests that avoid serverless timeouts, per-slide retry, and output-token limits respected.
 - **Consequences:** Stop keeps whatever has landed; a failed slide shows "Retry this slide".
@@ -265,7 +266,7 @@ When a decision changes during the build, the original record stays as written, 
 
 ### D28. `/api` runs as plain Node ESM; layer rules enforced by ESLint
 
-- **Status:** Accepted (2026-10-15). Amends D18, D19.
+- **Status:** Accepted (2026-10-15). Amends D18, D19. `maxDuration` raised to 120 s in [D35](#d35-the-agent-as-built). Local `/api` now runs inside the Vite dev server ([D36](#d36-tool-choice-per-step-local-api-in-vite-gemini-model)).
 - **Decision:**
   - `"type": "module"`; every relative import in `src/lib` and `api/` names its file (`./layout.js`). The `@/` alias is for UI code only.
   - ESLint `no-restricted-imports` enforces the layer rules: `src/lib` imports no React/UI libraries and nothing from upper layers; `api/` imports only `src/lib` (plus npm packages).
@@ -337,3 +338,72 @@ When a decision changes during the build, the original record stays as written, 
   - **Undo/redo reveal:** after undo or redo, `revealTarget` reads the history entry's patch paths (`slides.<id>.elements.<id>…`, `elementOrder`, `slideOrder`) against the resulting deck, selects the affected elements (on one slide), scrolls that slide into view (minimal scroll) and flashes the elements in the user's indigo; if no element survives (an undone add), it flashes the slide.
 - **Why:** Scrolling while dragging is normal in a continuous column; the drop target has to be unmistakable; undo should never leave the user guessing what changed.
 - **Consequences:** Browser checks cover wheel-scroll mid-drag (element stays under the cursor, source frame on top), edge auto-scroll with a drop on the ringed slide, ring labels for move and copy, and undo/redo reveal (scroll, selection, flash).
+
+### D35. The agent as built
+
+- **Status:** Accepted (2026-10-15). Details D11–D15, D23 and D25; amends D11 (tool list), D12 (concurrency, retry) and D28 (`maxDuration`).
+- **Decision:**
+  - **Code layout.** Everything the model can do lives in `src/lib/agent` (pure, shared): `context.js` (compact deck description, D13), `tools.js` (`createDeckTools`), `plan.js` (`plan_deck` → skeleton ops + per-slide briefs), `prompts.js` (versioned prompts), `request.js` (`toRequestDeck`). The Vercel functions in `api/` are thin: validate the body, build the tools over a working copy of the deck, run the turn, stream events. Shared server helpers are in `api/_lib` (`sse`, `guard`, `providers`, `runTurn`; the underscore keeps Vercel from routing them).
+  - **Tools resolve, then apply locally.** Each tool turns flat model input into fully resolved ops (ids, placement via `placeElement`, D24), applies them to the server's working copy with the same `applyOp` and only then emits them. A failed op returns `{ ok: false, error: 'CODE: message' }` to the model, which can correct itself; nothing is emitted. Later tool calls in the same turn see earlier results (new ids, positions).
+  - **Tool list.** One add tool per element type (`add_text`, `add_chart`, `add_table`, `add_image`, `add_shape`) instead of a generic `add_element`, plus the D11 slide/element/chart tools, `get_slide` and `finish_turn` (`suggestions` optional, so a model that omits it still ends cleanly). Populate gets a reduced toolset (adds, `update_slide` for notes, `finish_turn`).
+  - **Flat tool schemas.** No unions, `nullable` or records in tool inputs (checked by a test through `z.toJSONSchema`), because providers reject or mangle them differently. "Insert first" is the string `"START"` for `afterSlideId`; omitted = last.
+  - **Provider chain.** `LLM_PROVIDER` + `LLM_FALLBACKS` (default sarvam → gemini → groq), skipping providers without a key. A turn falls back to the next provider only before any op has been emitted; once ops have reached the client, an error ends the turn (falling back then would replay changes). If Sarvam's stream has an unexpected shape, the same request is retried once with `simulateStreamingMiddleware` (non-streaming call, replayed as a stream); `SARVAM_STREAM=false` forces that mode. Errors map to `RATE_LIMITED` (with `retryAfter`), `AUTH`, `PROVIDER_DOWN`, `BAD_REQUEST`.
+  - **Guards.** Body over 4 MB → 413 (the client strips image data first with `toRequestDeck`: image `src` becomes `img:<id>`); per-IP limit (default 30/min, best effort on serverless) → 429 with `Retry-After`; invalid body → 400. SSE heartbeat every 15 s. `maxDuration` is 120 s (a populate or agent turn on a slow free tier can pass 60 s).
+  - **Client.** `services/ai.js` runs one AI request at a time: `runEdit` (`/api/agent`), `generateDeck` (`/api/plan`, then `/api/populate` per slide, 2 in parallel), `continueGeneration`, `restorePreviousDeck`. Streamed ops are queued and dispatched once per animation frame, one dispatch per tool (source `ai`, the turn's id, D25), so an op whose target the user deleted meanwhile is skipped alone and counted. Each tool's ops become a chip ("Added chart · slide 3") that selects, scrolls to and flashes its target. Elements an AI op changed glow saffron.
+  - **Generation replaces the deck.** A new deck replaces the current one (history cleared, like loading a file); the replaced deck is kept in memory for "Restore previous deck" on that message. "Undo this" is offered on edit turns while the turn is the newest history entry, not on generations.
+  - **Failure handling.** A failed or rate-limited request shows its error on the message with Retry (counting down `retryAfter`). For generation, failed and never-started slides are collected and "Retry empty slides" fills just those; Stop keeps what landed and offers "Continue building". A slide that was mid-fill at Stop is not refilled (that could duplicate its elements).
+  - **Chat UI.** One composer with two modes (Edit deck / New deck, forced to New deck when the deck is empty), a slide-count picker for new decks, a chip naming the current selection ("chart on slide 2"), Enter to send, Stop while busy. Undo/redo are disabled while a run streams (D10).
+- **Why:** The server and client run the same op code, so what the model was told happened is exactly what the client applies. Falling back only before the first op keeps fallback invisible to the deck. Two parallel populate calls stay under free-tier rate limits while slides still appear steadily.
+- **Consequences:** `tests/flow.test.js` runs the browser services against the real handlers with a scripted mock model (generate, edit + undo, rate-limit error, failed slide + retry). A browser check with mocked `/api` covers generate → chips → edit with a selection → chip click → Undo this → Restore previous deck. Real-model behaviour (Sarvam tool-call reliability, latency) is measured with `npm run llm:smoke` and recorded in the README.
+
+### D36. Tool choice per step; local `/api` in Vite; Gemini model
+
+- **Status:** Accepted (2026-10-15). Amends D28 (local development) and D35 (provider handling). Prompted by the first live smoke test. Sarvam streaming default changed in [D37](#d37-sarvam-runs-non-streamed-by-default).
+- **Context:** Smoke test results: Sarvam handled a forced `plan_deck` call (5.8 s, valid plan) but failed the streamed tool loop with `AI_ToolChoiceViolationError`: with `toolChoice: 'required'` on every step, a step came back as prose. `gemini-2.5-flash` returns 404 for new API keys ("use gemini-3.8-flash"). `vercel` was not on the PATH on the dev machine.
+- **Decision:**
+  - **Tool choice per step.** Multi-step turns force a tool call on the first step only (`prepareStep`: step 0 `required`, later steps `auto`). A model that closes the turn with a sentence instead of `finish_turn` now ends cleanly; before, the SDK threw after ops had already landed, which reported a failure for a slide that had content. `plan_deck` stays forced.
+  - **Sarvam retry.** If Sarvam answers in prose on the forced first step (or a populate turn ends with no ops), it is retried once with tool choice `auto`; a malformed stream still retries once non-streamed. Then the normal fallback applies, still only while no op has been emitted.
+  - **Populate must change the slide.** `/api/populate` treats a turn with zero ops as a failure (`NO_CHANGES`), so the retry, the next provider, or the client's "Retry empty slides" handles it instead of leaving an empty slide marked done.
+  - **Local `/api` in Vite.** `npm run dev` serves `api/*.js` through a dev-only Vite middleware (`scripts/vite-local-api.js`): Web `Request` in, streamed `Response` out, abort on disconnect, keys loaded from `.env` into the server process only. `vercel dev` remains available as `dev:full`.
+  - **Gemini default model** `gemini-3.8-flash` (overridable with `GEMINI_MODEL`).
+  - **No test files in `api/`.** Vercel deploys every `.js` file in `api/` as a function, so the handler tests live in `tests/api/`.
+  - **`npm run llm:probe`** runs the real handlers per provider (plan, two populates, one edit) with fallback disabled, to judge each provider on the app's own path.
+- **Why:** The forced-every-step policy was stricter than the agent needs and broke on the primary model. One `npm run dev` with no CLI or project link is simpler to run and to review.
+- **Consequences:** Three `runTurn` tests (`tests/api`) cover the per-step tool choice, the Sarvam retry and fallback, and the forced single tool.
+
+### D37. Sarvam runs non-streamed by default
+
+- **Status:** Accepted (2026-10-15). Amends D35 (Sarvam provider) and D36. Completion checks in [D38](#d38-a-run-must-finish-its-job-plan-retries-7-character-ids).
+- **Context:** First live edit turn: Sarvam started a `get_slide` call, then the stream failed with "Type validation failed" on a tool-call chunk. `sarvam-ai-sdk`'s streaming chunk schema rejects a field Sarvam sends in streamed tool-call deltas (its tool-call ids look like vLLM's, which sends `null` for fields the schema only allows to be absent). The same requests parse fine non-streamed: the forced `plan_deck` smoke test passed. Gemini answered 503 "high demand" on the same turn.
+- **Decision:**
+  - Sarvam calls run through `simulateStreamingMiddleware` unless `SARVAM_STREAM=true`: each step is one normal request, replayed as a stream. Tools, ops, chips and Stop work the same; assistant text arrives per step instead of per token, which matters little because the visible progress is ops landing on the canvas.
+  - With `SARVAM_STREAM=true`, a "Type validation failed" error now also triggers the one non-streamed retry.
+  - The SDK's own retry with backoff goes from 1 to 2 attempts, so a short 429/503 burst ("high demand") is absorbed before falling back to the next provider.
+  - Each failed attempt is logged on the server (`[runTurn] <provider>: <message>`) so the full reason is visible in the Vercel or Vite logs; the SSE status carries only a truncated reason.
+- **Why:** The non-streamed path is the one we've seen work. Patching the SDK's chunk parser through a custom `fetch` would mean guessing at an undocumented stream format under deadline.
+- **Consequences:** Sarvam turns show "Thinking…" then chips appearing per step rather than streamed words. Revisit when `sarvam-ai-sdk` updates its chunk schema; `llm:probe` with `SARVAM_STREAM=true` re-checks it.
+
+### D38. A run must finish its job; plan retries; 7-character ids
+
+- **Status:** Accepted (2026-10-15). Amends D36 (populate check) and D24 (id length).
+- **Context:** `llm:probe` on Sarvam (non-streamed): the forced `plan_deck` call came back after 13.6 s with an empty input (`{}`), so validation failed and the request ended `NO_PLAN` with no retry. An empty tool input is what a truncated or aborted tool call looks like. A flaky unit test also showed 5-character ids repeating about once per 16 runs of 2,000 ids.
+- **Decision:**
+  - `runTurn` takes `isComplete()`: populate = at least one op landed; plan = a valid plan arrived. A run that ends incomplete is a failed attempt, so it gets the same retry and fallback as an error, and the error says how the model finished (`finish: length` points to the token limit).
+  - Sarvam's one retry: for a forced tool (plan) the same call again; otherwise with tool choice `auto`.
+  - `/api/plan` gets `maxOutputTokens: 4000` (was 2500): Sarvam's reasoning tokens count against the limit.
+  - Ids are 7 characters (32⁷ ≈ 34 billion). Client and server mint ids independently, so a repeat would make one op overwrite another element.
+- **Why:** "Ended without doing the job" should be handled like an error, not reported as success or a dead end.
+- **Consequences:** A new `runTurn` test covers the empty forced call being retried; the populate fallback test now uses `isComplete`.
+
+### D39. Persistence and the StartScreen as built
+
+- **Status:** Accepted (2026-10-15). Details D20 (persistence) and the user journey (StartScreen, "+ New").
+- **Decision:**
+  - **One workspace in IndexedDB** (`idb-keyval`, database `ai-presentation-builder`): `{ version, deck, messages, savedAt }`. On load the deck is validated with `DeckSchema`; unreadable data is moved to a backup key instead of being overwritten by the next autosave, and the user gets the StartScreen.
+  - **Autosave** subscribes to the store: debounced 600 ms after the last change, but never more than 2 s behind (an AI run changes the deck and chat continuously, which would otherwise postpone saving until it ends), plus a flush when the tab is hidden or closed. The top bar shows "Saving…", "Saved", or a red "Not saved" if storage fails.
+  - **Chat is saved with the deck.** A run that was streaming when the page closed comes back as stopped. Generation stores its slide briefs on the message as soon as the plan lands, so "Continue building" works after a reload; it fills only slides that still hold nothing but their title, so slides filled before the reload aren't duplicated.
+  - **Screens:** `loading` (reading IndexedDB) → `start` (nothing saved, or "+ New") → `editor`. No router: one `screen` field in the UI slice.
+  - **StartScreen:** one prompt box (Ctrl+Enter), slide count, four example chips (the first matches the reviewers' "chart and a table" test), "Start blank", "Open the sample deck". Generate switches to the editor immediately; the outline and skeleton slides appear there (no approval step, D12).
+  - **"+ New"** (top bar, confirm when there is content) clears the deck, chat and saved workspace and returns to the StartScreen. The sample-deck button moved from the top bar to the StartScreen and the empty chat.
+- **Why:** Refresh must restore the work, including a run interrupted by a reload; the first screen should say what the product does.
+- **Consequences:** Single deck only (multi-project stays a Day 2 nice-to-have). "Restore previous deck" lasts for the session only (the replaced deck is not persisted). Seven persistence tests (fake-indexeddb) and a browser check: start screen, rename + reload, "+ New" + reload, generate + reload, reload mid-generation + "Continue building".

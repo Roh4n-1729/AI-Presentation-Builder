@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D29), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D39), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -44,8 +44,15 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] `lib/`: schema v2 (Zod), ops (D24, D30), layout slots + collision-aware placement (D31), theme roles + `resolveColor`; 53 tests
 - [x] Store (vanilla Zustand, D25 grouping, actions) + canvas/filmstrip port (D33); sample deck loads on start; 63 unit tests, 16 browser checks
 - [x] Canvas fixes from testing: drag while scrolling + edge auto-scroll, drop ring, undo/redo reveal (D34); 69 unit tests, 33 browser checks
-- [ ] Deploy canvas (checkpoint 13:00)
-- [ ] Sarvam smoke test; `/api/plan`, `/api/populate`, `/api/agent`; chat (checkpoint 17:00)
+- [x] Deploy canvas (checkpoint 13:00)
+- [x] Agent (D35): `src/lib/agent` (context, flat tools, plan, prompts), `/api/plan`, `/api/populate`, `/api/agent` with provider fallback; client services, chat panel (generate / edit modes, chips, retry, stop, restore); 97 unit + flow tests, browser check with mocked `/api`
+- [x] Smoke test round 1 (D36): tool choice forced on step 0 only, Sarvam retry in `auto`, populate requires ops, `/api` served by Vite in `npm run dev`, Gemini `gemini-3.8-flash`, `npm run llm:probe`
+- [x] Sarvam non-streamed by default (D37): its streamed tool-call chunks fail the SDK's schema
+- [x] Runs must finish their job (`isComplete`: plan arrived / ops landed), plan retried once, 7-char ids (D38)
+- [x] `llm:probe` green on Sarvam (15:10)
+- [x] Persistence (IndexedDB autosave, restore deck + chat, continue after reload) + StartScreen + "+ New" (D39); 109 tests
+- [ ] Deploy with keys and check generate → edit on the deployed URL (checkpoint 17:00)
+- [ ] e2e reviewer-script test (Playwright) + golden-prompt eval
 
 ## Where things are
 
@@ -55,6 +62,11 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - UI kit: `src/primitives/ui/*` (shadcn, JS), `src/primitives/cn.js`, tokens in `src/styles/index.css` (`bg-panel`, `text-muted-foreground`, `bg-user`, `bg-ai`, `text-ui`, `text-label`, `font-display`, `shadow-float`, `ease-standard`)
 - Add shadcn components on a dev machine: `npx shadcn@latest add <name>` (components.json is JS mode)
 
+- Agent: `src/lib/agent` (tools, plan, prompts, context) · `api/_lib` (sse, guard, providers, runTurn) · client runs in `src/services/ai.js` (bound via `src/hooks/useAi.js`) · chat UI in `src/features/chat`
+- Persistence: `src/services/persistence.js` (load/save/autosave), `src/services/workspace.js` (boot, new, start blank/sample), bound in `src/hooks/useWorkspace.js`; screens switch on `ui.screen`
+- Local `/api`: `scripts/vite-local-api.js` (dev-only Vite middleware); live check of the AI path: `npm run llm:probe`
+- Tests that span client and server: `tests/flow.test.js` (stubbed fetch → real handlers → mock model)
+
 ## Open items (proposed, not yet decided)
 
-Flat tool input schemas (no unions) for provider portability · `plan_deck` returns per-slide intent/key points/visual · auto-shrink as render-time measurement · print view as a print-only container (no router) · client-side request size guard (Vercel body limit 4.5 MB) · per-IP rate limit is best-effort on serverless.
+Auto-shrink as render-time measurement · print view as a print-only container (no router).

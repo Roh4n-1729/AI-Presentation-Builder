@@ -181,3 +181,15 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* StartScreen: a soft saffron → periwinkle wash behind the prompt (a nod to Sarvam's hero). */
+.start-wash {
+  background:
+    radial-gradient(60% 45% at 20% 0%, color-mix(in srgb, var(--ai) 14%, transparent), transparent),
+    radial-gradient(
+      55% 45% at 85% 5%,
+      color-mix(in srgb, var(--user) 13%, transparent),
+      transparent
+    ),
+    var(--background);
+}

@@ -11,6 +11,13 @@ export const createUiSlice = (initialDeck) => (set) => ({
   draggingSlideId: null,
   /** drop target during a cross-slide drag: { slideId, copy } (copy = Alt held) */
   dropTarget: null,
+  /** 'loading' (reading IndexedDB) | 'start' (StartScreen) | 'editor' */
+  screen: 'loading',
+  /** autosave state for the top bar: 'idle' | 'unsaved' | 'saving' | 'saved' | 'error' */
+  saveStatus: 'idle',
+
+  setScreen: (screen) => set((s) => (s.screen === screen ? s : { screen })),
+  setSaveStatus: (saveStatus) => set((s) => (s.saveStatus === saveStatus ? s : { saveStatus })),
 
   select(id, additive = false) {
     set((s) => {

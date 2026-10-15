@@ -8,7 +8,7 @@ playwright-report/
 test-results/
 .eslintcache
 
-# env: keys live in Vercel env vars or .env.local, never in git
+# env: keys live in Vercel env vars or .env, never in git
 .env
 .env*.local
 

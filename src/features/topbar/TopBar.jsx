@@ -1,6 +1,7 @@
-import { Moon, Redo2, Sun, Undo2 } from 'lucide-react';
+import { Moon, Plus, Redo2, Sun, Undo2 } from 'lucide-react';
 import { useColorScheme } from '@/hooks/useColorScheme.js';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
+import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { IconButtonTip } from '@/primitives/IconButtonTip.jsx';
 import { ToolbarGroup } from '@/primitives/ToolbarGroup.jsx';
 
@@ -9,8 +10,11 @@ const MOD = isMac ? '⌘' : 'Ctrl';
 
 export function TopBar() {
   const title = useDeck((s) => s.deck.title);
-  const canUndo = useDeck((s) => s.past.length > 0);
-  const canRedo = useDeck((s) => s.future.length > 0);
+  // D10: history is paused while an AI run streams (its ops are still landing).
+  const aiBusy = useDeck((s) => s.aiBusy);
+  const canUndo = useDeck((s) => s.past.length > 0) && !aiBusy;
+  const canRedo = useDeck((s) => s.future.length > 0) && !aiBusy;
+  const { newPresentation } = useWorkspace();
   const { scheme, toggle } = useColorScheme();
 
   return (
@@ -56,7 +60,22 @@ export function TopBar() {
           onClick={() => getDeckState().redo()}
         />
       </ToolbarGroup>
-      <div className="ml-auto">
+      <SaveIndicator />
+      <div className="ml-auto flex items-center gap-1">
+        <IconButtonTip
+          icon={Plus}
+          label="New presentation"
+          disabled={aiBusy}
+          onClick={() => {
+            const empty =
+              getDeckState().deck.slideOrder.length === 0 && getDeckState().messages.length === 0;
+            if (
+              empty ||
+              window.confirm('Start a new presentation? The current deck and chat will be cleared.')
+            )
+              newPresentation();
+          }}
+        />
         <IconButtonTip
           icon={scheme === 'dark' ? Sun : Moon}
           label={scheme === 'dark' ? 'Light mode' : 'Dark mode'}
@@ -64,5 +83,27 @@ export function TopBar() {
         />
       </div>
     </header>
+  );
+}
+
+const SAVE_LABEL = {
+  unsaved: 'Saving…',
+  saving: 'Saving…',
+  saved: 'Saved',
+  error: 'Not saved: browser storage unavailable',
+};
+
+/** Autosave state (IndexedDB). Quiet when all is well; red when saving failed. */
+function SaveIndicator() {
+  const status = useDeck((s) => s.saveStatus);
+  const label = SAVE_LABEL[status];
+  if (!label) return null;
+  return (
+    <span
+      aria-live="polite"
+      className={status === 'error' ? 'text-label text-destructive' : 'text-label text-faint'}
+    >
+      {label}
+    </span>
   );
 }

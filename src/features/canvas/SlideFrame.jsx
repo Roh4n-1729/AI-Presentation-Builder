@@ -61,6 +61,7 @@ export const SlideFrame = memo(function SlideFrame({ slideId, index, scale, them
   const drop = useDeck((s) => (s.dropTarget?.slideId === slideId ? s.dropTarget : null));
   const isDragging = useDeck((s) => s.draggingSlideId === slideId);
   const reveal = useDeck((s) => (s.reveal?.slideId === slideId ? s.reveal : null));
+  const aiFlash = useDeck((s) => s.aiFlash[slideId]);
   const isActive = useDeck((s) => s.activeSlideId === slideId);
   const editingId = useDeck((s) => s.editingId);
   const interaction = useInteraction();
@@ -102,24 +103,28 @@ export const SlideFrame = memo(function SlideFrame({ slideId, index, scale, them
       <CanvasMoveable slide={slide} frameRef={frameRef} artboardRef={artboardRef} scale={scale} />
       {drop && <DropRing label={`${drop.copy ? 'Copy' : 'Move'} to slide ${index + 1}`} />}
       {reveal && <RevealFlash key={reveal.seq} reveal={reveal} slide={slide} scale={scale} />}
+      {aiFlash && (
+        <RevealFlash key={`ai${aiFlash.seq}`} reveal={aiFlash} slide={slide} scale={scale} ai />
+      )}
     </div>
   );
 });
 
 /**
- * After undo/redo: a short indigo flash on what changed (the user's color; AI changes will glow
- * saffron). Element boxes when we know them, otherwise the whole slide. Screen-space overlay
- * next to the renderer, never inside it (D6).
+ * A short flash on what changed: indigo after undo/redo (the user's color), saffron where an AI
+ * op just landed (D17). Element boxes when we know them, otherwise the whole slide. Screen-space
+ * overlay next to the renderer, never inside it (D6).
  */
-function RevealFlash({ reveal, slide, scale }) {
+function RevealFlash({ reveal, slide, scale, ai = false }) {
+  const cls = ai ? 'reveal-flash ai-flash' : 'reveal-flash';
   const boxes = reveal.elementIds.map((id) => slide.elements[id]?.bbox).filter(Boolean);
   if (boxes.length === 0)
-    return <div aria-hidden className="reveal-flash -inset-[5px] rounded-[13px]" />;
+    return <div aria-hidden className={cn(cls, '-inset-[5px] rounded-[13px]')} />;
   return boxes.map((b, i) => (
     <div
       key={i}
       aria-hidden
-      className="reveal-flash rounded-sm"
+      className={cn(cls, 'rounded-sm')}
       style={{
         left: b.x * scale - 4,
         top: b.y * scale - 4,
