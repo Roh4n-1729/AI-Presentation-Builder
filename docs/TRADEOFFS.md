@@ -91,7 +91,7 @@ This file records options I evaluated and deliberately did **not** implement, wh
 
 ### Sending the full deck or chat history every turn
 - **Considered:** dumping the full deck JSON and full chat history into each request.
-- **Chose:** a compact deck snapshot (ids, types, boxes, truncated text, never image data), a `get_slide` tool for detail, and the last N turns plus a running summary.
+- **Chose:** a compact deck snapshot (ids, types, boxes, truncated text, never image data), a `get_slide` tool for detail, and the last 8 chat messages. A running summary of older turns was planned but not built: the fresh deck snapshot carries what edits need.
 - **Why:** Token cost and latency. Base64 images alone could exceed request limits.
 - **Not needed:** RAG or embeddings. The deck is small and structured, so it fits in the context directly.
 

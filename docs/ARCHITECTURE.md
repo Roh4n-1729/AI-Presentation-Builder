@@ -1,6 +1,6 @@
 # Architecture
 
-> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md) (D1–D63); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
+> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md) (D1–D78); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
 
 ## The one invariant
 
@@ -70,9 +70,9 @@ Tools live in `src/lib/agent/tools.js`. Each resolves its flat input into ops, a
 | `duplicate_slide`                                              | `duplicate_slide` with a fresh `newSlideId` and `idMap`                                           |
 | `change_layout`                                                | `change_layout` with `placements` from `reflowLayout` (slotted elements reflow, hand-placed stay) |
 | `add_text`, `add_chart`, `add_table`, `add_image`, `add_shape` | `add_element` with a fresh id and a box from `placeElement`                                       |
-| `update_element`, `update_elements`                            | `update_element` per element (flat fields mapped to the element's patch)                          |
+| `update_element`, `update_elements`                            | `update_element` per element (flat fields mapped to the element's patch; may lock, never unlock)  |
 | `delete_element`, `reorder_elements`                           | same-named op                                                                                     |
-| `move_element`                                                 | `move_element` (box, or `toSlideId` + `findFreeSpot`; `copy` adds `newId`)                        |
+| `move_element`                                                 | `move_element` (box, or `toSlideId` + `fitOnSlide`; `copy` adds `newId`)                          |
 | `resize_element`                                               | `update_element` with the new `bbox`                                                              |
 | `update_chart_data`, `change_chart_type`                       | `update_element` on the chart                                                                     |
 | `get_slide`, `finish_turn`                                     | none (read / end of turn)                                                                         |
@@ -80,9 +80,9 @@ Tools live in `src/lib/agent/tools.js`. Each resolves its flat input into ops, a
 ## Turn lifecycle
 
 1. The client builds the request from the store (`toRequestDeck`: no image data) and POSTs it; the response is SSE.
-2. The server validates the body, picks the first provider with a key and runs `streamText` with the tools. Events: `status` (provider, fallback), `text` (assistant text), `tool` (start/done/error), `op` (resolved ops for one tool), `error`, `done` (summary, suggestions, usage).
+2. The server checks the body (size counted as it is read, then Zod), picks the first provider with a key and runs `streamText` with the tools. Events: `status` (provider, fallback), `text` (assistant text), `tool` (start/done/error), `op` (resolved ops for one tool), `error`, `done` (summary, suggestions, usage).
 3. The client queues `op` events and dispatches them once per animation frame (source `ai`, the turn's id), so the whole turn is one undo entry. Each tool's ops become a chip on the chat message.
-4. Stop aborts the fetch; the abort reaches the model call. Ops already applied stay.
+4. Stop aborts the fetch; the abort reaches the model call. Ops already applied stay. During generation, every slide that still holds only its title can be filled later with Continue.
 
 ## Drag-and-drop and cross-slide moves
 
@@ -110,7 +110,7 @@ sequenceDiagram
 
 - **Coordinates:** boxes are stored in artboard units; each slide frame is the artboard CSS-scaled by `scale`, so a screen delta ÷ `scale` = artboard units. A frame drop converts the element's screen rect into the target artboard's units.
 - **Hit-testing:** `document.elementsFromPoint` at the pointer, first `[data-slide-drop]` (filmstrip thumbnail) or `[data-slide-frame]` (another slide in the column) that isn't the source slide. Drag state (`draggingSlideId`, `dropTarget`) lives in the store, never in `classList`, so re-renders can't wipe it.
-- **Scrolling:** Moveable `scrollable` with the slide column as the container; near the edge the column scrolls and a replayed pointer event keeps the element under a still cursor ([D34](DECISIONS.md#d34-dragging-across-a-scrolling-column-drop-ring-undo-reveal)).
+- **Scrolling:** Moveable `scrollable` with `scrollOptions` whose `container` is a getter for the slide column ([D74](DECISIONS.md#d74-moveable-auto-scroll-settings-in-scrolloptions)); near the edge the column scrolls and a replayed pointer event keeps the element under a still cursor ([D34](DECISIONS.md#d34-dragging-across-a-scrolling-column-drop-ring-undo-reveal)).
 - **Multi-selection:** one group drag; a click without movement inside an ungrouped multi-selection selects the element under the pointer ([D56](DECISIONS.md#d56-tidy-removed-click-inside-a-multi-selection-table-height)).
 - **Filmstrip reorder:** dnd-kit sortable; the drop index becomes `reorder_slides { slideId, afterSlideId }`.
 
@@ -123,7 +123,7 @@ sequenceDiagram
   participant F as /api/populate (×2 in parallel)
   participant A as /api/agent
   B->>P: prompt, slide count
-  P-->>B: SSE op: update_deck + add_slide × N (titled skeletons), briefs
+  P-->>B: SSE op: update_deck + add_slide × N (titled skeletons), briefs, follow-up suggestions
   loop each slide
     B->>F: deck snapshot (no image data) + brief
     F-->>B: SSE op events (add_text / add_chart / add_table / add_image, notes), done
@@ -153,11 +153,11 @@ Photos and descriptions run in the browser, one at a time, with per-browser budg
 
 ## Export
 
-- **PowerPoint:** `lib/export/pptx.js` maps the deck to pptxgenjs calls (pure, tested in Node): 144 units = 1 in, native charts and tables, text re-measured in the browser with the export fonts (Cambria, Arial) so it fits, images framed and cropped as on the canvas, stock-photo credits in the speaker notes. `services/pptxExport.js` loads pptxgenjs on demand and downloads the file ([D44](DECISIONS.md#d44-export-print-present-box-select-themes-deck-files)).
+- **PowerPoint:** `lib/export/pptx.js` maps the deck to pptxgenjs calls (pure, tested in Node): 144 units = 1 in, native charts and tables, text and table cells re-measured in the browser with the export fonts (Cambria, Arial) so they fit their boxes ([D72](DECISIONS.md#d72-audit-fixes-and-series-colours)), images framed and cropped as on the canvas, stock-photo credits in the speaker notes. `services/pptxExport.js` loads pptxgenjs on demand and downloads the file ([D44](DECISIONS.md#d44-export-print-present-box-select-themes-deck-files)).
 - **PDF:** a print view of the same `SlideRenderer`, one slide per page, scaled with CSS `zoom` (Chromium drops SVG charts inside scaled transforms when printing).
-- **Deck file:** the deck JSON, validated with the same schema on import.
+- **Deck file:** the deck JSON, validated with the same schema on import, including unique ids in every order and across slides.
 
 ## Persistence and routing
 
-- **IndexedDB** through `services/kvStore.js` (idb-keyval in the browser, a Map in tests): up to 5 projects (deck + chat), autosaved after changes; the start screen lists them ([D39](DECISIONS.md#d39-persistence-and-the-startscreen-as-built), [D52](DECISIONS.md#d52-persistence-behind-a-four-method-store-tests-use-memory-not-fake-indexeddb)).
+- **IndexedDB** through `services/kvStore.js` (idb-keyval in the browser, a Map in tests): up to 5 projects (deck + chat), autosaved after changes (an emptied project is saved too, so deleted content doesn't come back); the start screen lists them ([D39](DECISIONS.md#d39-persistence-and-the-startscreen-as-built), [D52](DECISIONS.md#d52-persistence-behind-a-four-method-store-tests-use-memory-not-fake-indexeddb)).
 - **React Router** decides what is on screen: `/` (start), `/deck/:deckId` (editor; loads the project unless it's open), `/deck/:deckId/present/:slide` (Present, a child route). Workspace actions return deck ids and the hooks navigate; nothing writes `history` by hand ([D59](DECISIONS.md#d59-react-router-owns-navigation)).

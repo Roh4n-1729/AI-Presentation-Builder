@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D76), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D78), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -32,7 +32,7 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 5. Pressing an already-selected element (no Shift) keeps the group.
 6. Text edit = uncontrolled contentEditable; `select()` must not clear `editingId` (blur commits).
 7. `user-select: none` on the artboard, opt back in on `[contenteditable=true]`.
-8. Cross-slide hit-test via `document.elementsFromPoint` → `[data-slide-drop]` / `[data-slide-frame]`; frame drop converts screen rect to target units. Single and group drags share these rules; groups move as one piece (`shiftGroup`, `groupToFreeSpot`).
+8. Cross-slide hit-test via `document.elementsFromPoint` → `[data-slide-drop]` / `[data-slide-frame]`; frame drop converts screen rect to target units. Single and group drags share these rules; groups move as one piece (`shiftGroup`; thumbnail drops and AI moves use `fitOnSlide`, D63).
 9. Recharts: explicit width/height = bbox (no ResponsiveContainer), `pointer-events: none`.
 10. After any store change that moves a selected element (gesture commit, undo/redo, AI op, scale change), call `moveableRef.current.updateRect()` in a layout effect keyed on `[slide, scale, targets]`, or the outline and handles stay at the old rect.
 11. Never mark drag state with `classList`: React re-renders (e.g. active slide changing while scrolling) rewrite `className`. Keep it in the store (`draggingSlideId`, `dropTarget`).
@@ -70,7 +70,7 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] Table rows take their text height, box grows for added rows, text shrinks to fit; Next on the last slide ends Present (D55); 164 tests
 - [x] Tidy removed; click inside an ungrouped multi-selection selects just that element; tables fill their box, start at one row height per row, min 44 units a row (D56); 164 tests
 - [x] Deployed with keys: https://ai-presentation-builder-eosin.vercel.app/ (working, per Rohan)
-- [ ] Reviewer script (the brief's 7 steps) on the live URL
+- [x] Reviewer script (the brief's 7 steps) on the live URL (all pass, per Rohan)
 - [x] README (reviewer quick path + GIF, setup, architecture, DnD, agent + Sarvam results, design system, known gaps); ARCHITECTURE.md sections; drops shrink 75/50/35% before overlapping (D61); 193 tests
 - [x] Stock photos for AI images: Openverse → Wikimedia Commons → placeholder, keyless, CC0/PD/CC BY, credits in toolbar + PPTX notes, long queries shortened, `[photos]` console log (D57); 180 tests
 - [x] Image descriptions: each picture described once by Gemini (`/api/describe`), stored with a src fingerprint, sent as text; `dispatch(..., { record: false })` (D58); 188 tests
@@ -84,6 +84,8 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] Audit fixes: emptied project saved, Stop keeps empty slides retryable, compact tables keep their box in PPTX (measured), stricter deck ids, byte-counted body limit, chart double-click; series colours (`chart1`…`chart6` palette slots) (D72); 211 tests
 - [x] Highlighted page text wins over selected elements for Ctrl+C (D73)
 - [x] Moveable auto-scroll settings in `scrollOptions` (D74); `CanvasMoveable` release handlers named (D75); `useAiMotion` / `useMarquee` moved to `src/hooks` (D76)
+- [x] AI may lock but never unlock (`buildElementPatch`, D77); JSDoc typedefs match the Zod schemas; 213 tests
+- [x] Floating toolbar: Bring forward / Send backward (one layer) beside front / back (D78); 214 tests
 - [ ] Check stock photos on the live URL (CORS of image hosts, real limits)
 
 ## Where things are

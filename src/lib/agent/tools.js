@@ -389,7 +389,7 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId, phase } 
     update_element: {
       description:
         'Change one element in place (keeps its id and position). Text: paragraphs, bullets, fontSize (artboard units; body ≈ 34, title ≈ 72), color (role or hex), align. ' +
-        'Chart: chartTitle. Table: rows, headerRow. Image: query, alt. Shape: fill. Any element: locked. Only send fields you change.',
+        'Chart: chartTitle. Table: rows, headerRow. Image: query, alt. Shape: fill. Any element: locked: true locks it (you cannot unlock; only the user can). Only send fields you change.',
       inputSchema: z.object({
         elementId: z.string(),
         paragraphs: paragraphsField.optional(),
@@ -649,7 +649,12 @@ export function buildElementPatch(deck, i) {
     if (el.type !== 'shape') return wrong('fill');
     patch.fill = i.fill;
   }
-  if (i.locked !== undefined) patch.locked = i.locked;
+  if (i.locked !== undefined) {
+    // The AI may lock an element, never unlock one: only the user can lift a lock (D77).
+    if (!i.locked && el.locked)
+      return { error: `LOCKED: ${el.id} is locked by the user; ask them to unlock it` };
+    patch.locked = i.locked;
+  }
   if (Object.keys(patch).length === 0)
     return { error: 'Nothing to change: send at least one field.' };
   return { patch };

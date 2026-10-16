@@ -242,12 +242,20 @@ export function patchElement(store, elementId, patch, label = 'Edit') {
   return store.getState().dispatch({ type: 'update_element', elementId, patch }, { label });
 }
 
-/** Bring to front / send to back (z-order within the slide). */
+/** Undo labels for z-order changes within a slide. */
+const REORDER_LABELS = {
+  forward: 'Bring forward',
+  backward: 'Send backward',
+  front: 'Bring to front',
+  back: 'Send to back',
+};
+
+/** Layer order of one element: one step (`forward` / `backward`) or all the way (`front` / `back`). */
 export function reorderElement(store, elementId, direction) {
   return store
     .getState()
     .dispatch(
       { type: 'reorder_elements', elementId, direction },
-      { label: direction === 'front' ? 'Bring to front' : 'Send to back' },
+      { label: REORDER_LABELS[direction] },
     );
 }

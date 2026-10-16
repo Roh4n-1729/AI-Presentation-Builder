@@ -164,6 +164,21 @@ describe('edit tools patch in place', () => {
     expect(tools.delete_element.execute({ elementId: 'el_chart' }).error).toContain('LOCKED');
   });
 
+  it('the AI can lock an element but never unlock one (D77)', () => {
+    const deck = makeDeck();
+    deck.slides.s_bbbbb.elements.el_chart.locked = true;
+    const { ctx, emitted, tools } = setup(deck);
+    const r = tools.update_element.execute({ elementId: 'el_chart', locked: false });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('LOCKED');
+    expect(findElement(ctx.deck, 'el_chart').el.locked).toBe(true);
+    expect(emitted).toHaveLength(0);
+
+    // Locking an unlocked element is still allowed.
+    expect(tools.update_element.execute({ elementId: 'el_body', locked: true }).ok).toBe(true);
+    expect(findElement(ctx.deck, 'el_body').el.locked).toBe(true);
+  });
+
   it('update_elements is all-or-nothing', () => {
     const { ctx, emitted, tools } = setup();
     const r = tools.update_elements.execute({

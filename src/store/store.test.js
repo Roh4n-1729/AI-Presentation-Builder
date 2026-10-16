@@ -10,6 +10,8 @@ import {
   groupSelection,
   insertElement,
   moveSlideToIndex,
+  patchElement,
+  reorderElement,
   ungroupSelection,
 } from './actions.js';
 import { createAppStore } from './index.js';
@@ -252,5 +254,28 @@ describe('groups (D53)', () => {
     s().dispatch({ type: 'update_element', elementId: a, patch: { locked: true } });
     s().setSelection([a, b]);
     expect(groupSelection(store).ok).toBe(true);
+  });
+
+  it('steps an element forward and backward one layer, each one undo step (D78)', () => {
+    const store = createAppStore(makeDeck());
+    const order = () => store.getState().deck.slides.s_bbbbb.elementOrder;
+    expect(order()).toEqual(['el_chart', 'el_body']);
+    reorderElement(store, 'el_chart', 'forward');
+    expect(order()).toEqual(['el_body', 'el_chart']);
+    expect(store.getState().past.at(-1).label).toBe('Bring forward');
+    reorderElement(store, 'el_chart', 'backward');
+    expect(order()).toEqual(['el_chart', 'el_body']);
+    expect(store.getState().past.at(-1).label).toBe('Send backward');
+    store.getState().undo();
+    expect(order()).toEqual(['el_body', 'el_chart']);
+  });
+
+  it('the user can unlock an element (the AI cannot, D77)', () => {
+    const store = createAppStore(makeDeck());
+    const el = () => store.getState().deck.slides.s_bbbbb.elements.el_chart;
+    patchElement(store, 'el_chart', { locked: true }, 'Lock');
+    expect(el().locked).toBe(true);
+    expect(patchElement(store, 'el_chart', { locked: null }, 'Unlock').ok).toBe(true);
+    expect(el().locked).toBeFalsy();
   });
 });

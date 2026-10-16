@@ -3,7 +3,9 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  ArrowDown,
   ArrowDownToLine,
+  ArrowUp,
   ArrowUpToLine,
   Bold,
   ChartColumn,
@@ -249,6 +251,7 @@ export function FloatingToolbar({ slide, scale, theme }) {
   const above = minY * scale - BAR_H - 10;
   const top = above > -8 ? above : maxY * scale + 10; // flip below when there's no room above
   const single = els.length === 1 ? els[0] : null;
+  const layer = single ? slide.elementOrder.indexOf(single.id) : -1; // 0 = bottom
   const frameW = ARTBOARD_W * scale;
   const left = Math.max(-OVERHANG, Math.min(minX * scale, frameW + OVERHANG - barW));
 
@@ -305,14 +308,30 @@ export function FloatingToolbar({ slide, scale, theme }) {
       <ToolbarGroup>
         {single && (
           <>
+            {/* Layer order: one step (forward / backward) and all the way (front / back);
+                disabled at the end the element is already at. */}
+            <IconButtonTip
+              icon={ArrowUp}
+              label="Bring forward"
+              disabled={layer === slide.elementOrder.length - 1}
+              onClick={() => reorderElement(single.id, 'forward')}
+            />
+            <IconButtonTip
+              icon={ArrowDown}
+              label="Send backward"
+              disabled={layer === 0}
+              onClick={() => reorderElement(single.id, 'backward')}
+            />
             <IconButtonTip
               icon={ArrowUpToLine}
               label="Bring to front"
+              disabled={layer === slide.elementOrder.length - 1}
               onClick={() => reorderElement(single.id, 'front')}
             />
             <IconButtonTip
               icon={ArrowDownToLine}
               label="Send to back"
+              disabled={layer === 0}
               onClick={() => reorderElement(single.id, 'back')}
             />
             <IconButtonTip

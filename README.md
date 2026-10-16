@@ -3,8 +3,9 @@
 Describe a deck, and the AI plans it, then fills it slide by slide through tool calls. You refine it in chat or directly on a free-form canvas: drag, resize and snap elements, drag them onto other slides, edit chart data and table cells, undo anything, then present or export to PowerPoint or PDF.
 
 - **Live:** https://ai-presentation-builder-eosin.vercel.app/
-- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (D1–D76, every decision and why) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
+- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (D1–D78, every decision and why) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
 - **Stack:** Vite + React 19 (JavaScript + JSDoc) · Vercel functions · AI SDK v7 with Sarvam `sarvam-105b` (Gemini and Groq as fallbacks) · Zustand + Immer patches · react-moveable · dnd-kit · Recharts · Tailwind v4 + shadcn/ui · pptxgenjs · React Router · IndexedDB
+- **Why Vite + React (JavaScript), not Next.js:** a stack I can fully own and explain in two days; Zod gives runtime safety where it matters (tool inputs, ops, imported files); the model keys stay server-side in Vercel functions ([D18](docs/DECISIONS.md#d18-vite--react-javascript-on-vercel)).
 
 All of the brief's seven review steps work, including step 5 (dragging a chart onto another slide's thumbnail, then asking the AI about it). Known gaps are listed honestly [below](#known-issues-and-gaps).
 
@@ -45,7 +46,7 @@ npm run dev                   # UI + /api functions on http://localhost:5173 (ke
 | `npm run build`                   | Production build into `dist/`                                                                                                                     |
 | `npm run lint`                    | ESLint, including the layer-import rules                                                                                                          |
 | `npm run format` / `format:check` | Prettier                                                                                                                                          |
-| `npm test`                        | Vitest: 201 unit and flow tests (ops, layout, schema, agent tools with mock models, API handlers, persistence, export mapping, photos, routing)   |
+| `npm test`                        | Vitest: 214 unit and flow tests (ops, layout, schema, agent tools with mock models, API handlers, persistence, export mapping, photos, routing)   |
 | `npm run llm:smoke`               | Checks each provider key: a forced `plan_deck` call and a tool loop (`-- sarvam`, `-- gemini` or `-- groq` for one; spends a few Sarvam credits)  |
 | `npm run llm:probe`               | Runs the app's real AI path per provider with fallback off: plan a 4-slide deck, populate two slides, one edit; prints events, timings, op counts |
 
@@ -132,7 +133,7 @@ Because the move is an op in the shared store, the AI's next request includes th
 
 **Images.** `add_image` takes a short search query and alt text. The browser fills the placeholder with an openly licensed photo (Openverse, then Wikimedia Commons; CC0, public domain or CC BY only; credit kept on the element and written to the PPTX speaker notes), and keeps the placeholder if neither finds one ([D57](docs/DECISIONS.md#d57-stock-photos-from-openverse-with-wikimedia-commons-as-fallback)). Because the chat model reads text only, each picture (uploads included) is described once by Gemini through `/api/describe`, and that description is what the AI sees ([D58](docs/DECISIONS.md#d58-images-described-once-by-a-vision-model)).
 
-**Guard rails.** Tool inputs are validated with Zod and every op is checked by `applyOp` on the server first; an invalid call returns an error to the model, which can correct itself, and nothing reaches the browser. Locked elements can't be moved, edited or deleted by the AI. AI-proposed boxes never overlap existing content ([D41](docs/DECISIONS.md#d41-content-spacing-lead-slots-trimmed-slots-auto-shrink)), content the app places itself never starts above a slide's title, and while generating the cover holds only its title and subtitle (other title or section slides that get content switch to a content layout) ([D60](docs/DECISIONS.md#d60-reading-order-title-first), [D64](docs/DECISIONS.md#d64-no-content-above-the-title-cover-slides-stay-covers)). Prompts are versioned (`PROMPT_VERSION`).
+**Guard rails.** Tool inputs are validated with Zod and every op is checked by `applyOp` on the server first; an invalid call returns an error to the model, which can correct itself, and nothing reaches the browser. Locked elements can't be moved, edited or deleted by the AI, and the AI can lock an element but never unlock one ([D77](docs/DECISIONS.md#d77-the-ai-can-lock-but-never-unlock)). AI-proposed boxes never overlap existing content ([D41](docs/DECISIONS.md#d41-content-spacing-lead-slots-trimmed-slots-auto-shrink)), content the app places itself never starts above a slide's title, and while generating the cover holds only its title and subtitle (other title or section slides that get content switch to a content layout) ([D60](docs/DECISIONS.md#d60-reading-order-title-first), [D64](docs/DECISIONS.md#d64-no-content-above-the-title-cover-slides-stay-covers)). Prompts are versioned (`PROMPT_VERSION`).
 
 **Providers and Sarvam results.** The chain is Sarvam `sarvam-105b`, then Gemini, then Groq `gpt-oss-120b`, switching on rate limits, overload, errors, or a turn that ends without doing its job, and only while no op has been applied yet. What testing showed:
 
@@ -157,7 +158,7 @@ Light-first with a full dark mode, inspired by sarvam.ai's visual language witho
 
 ## Also built
 
-Present mode (F5, arrow keys, speaker notes with N, fade or push transitions, Esc or the last slide exits) · themes · up to 5 saved presentations in IndexedDB with autosave and a recent list · deck file export and import (.json) · URL routes with deep links and Back/Forward · insert menu (text, title, list, chart, table, image upload or URL, shapes) · chart and table data editor (double-click a chart; series colours from the theme palette or custom; paste cells from a spreadsheet or CSV) · copy, cut and paste elements (between slides and tabs) · group / ungroup (Ctrl+G) · lock · image crop and replace · box select · z-order · duplicate (Ctrl+D) · arrow-key nudge · AI changes glide into place with a brief highlight · speaker notes editor · toasts with Undo for deletions, and in-app confirmation dialogs (no browser pop-ups).
+Present mode (F5, arrow keys, speaker notes with N, fade or push transitions, Esc or the last slide exits) · themes · up to 5 saved presentations in IndexedDB with autosave and a recent list · deck file export and import (.json) · URL routes with deep links and Back/Forward · insert menu (text, title, list, chart, table, image upload or URL, shapes) · chart and table data editor (double-click a chart; series colours from the theme palette or custom; paste cells from a spreadsheet or CSV) · copy, cut and paste elements (between slides and tabs) · group / ungroup (Ctrl+G) · lock · image crop and replace · box select · layer order (one step, or to front / back) · duplicate (Ctrl+D) · arrow-key nudge · AI changes glide into place with a brief highlight · speaker notes editor · toasts with Undo for deletions, and in-app confirmation dialogs (no browser pop-ups).
 
 ## Known issues and gaps
 
@@ -171,6 +172,7 @@ Present mode (F5, arrow keys, speaker notes with N, fade or push transitions, Es
 - **PowerPoint export:** fonts are named as Cambria and Arial (the web fonts aren't installed with Office; text is re-measured so it still fits); groups are exported as separate shapes; image crop is baked into the exported picture.
 - **PDF** goes through the browser's print dialog (choose "Save as PDF"), not a server-generated file.
 - **Text** is plain paragraphs with bullets and indent levels: no bold or italic inside a line, no links.
+- **Rotation** is in the schema, drawn on the canvas and written to the PowerPoint file, but nothing in the app sets it yet: there is no rotate handle and no AI tool for it. A rotated element only arrives through an imported deck file. It can be selected, dragged and resized (its outline follows the rotation), but placement and overlap checks treat it as its unrotated box.
 - **Storage is per browser** (IndexedDB, 5 most recent presentations); there is no account or sync, by design of the brief.
 - **Rate limiting** on `/api` is in memory per serverless instance, so it is best-effort.
 - **Desktop only.** Built and checked in Chromium-based browsers with mouse and keyboard; touch and small screens aren't supported.

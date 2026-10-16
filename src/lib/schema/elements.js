@@ -167,10 +167,12 @@ export const ElementSchema = z.discriminatedUnion('type', [
 /**
  * @typedef {{ x: number, y: number, w: number, h: number, rotation?: number }} BBox
  * @typedef {{ text: string, bullet?: boolean, level?: number }} Paragraph
- * @typedef {{ id: string, bbox: BBox, locked?: boolean, slot?: string, name?: string }} ElementBase
+ * @typedef {{ id: string, bbox: BBox, locked?: boolean, slot?: string, name?: string, groupId?: string }} ElementBase
  * @typedef {ElementBase & { type: 'text', role: 'title'|'subtitle'|'body'|'caption', paragraphs: Paragraph[],
  *   style: { fontSize?: number, color?: string, fontWeight?: 400|500|600|700, align?: 'left'|'center'|'right', font?: 'heading'|'body' } }} TextElement
- * @typedef {ElementBase & { type: 'image', src: string, alt: string, fit: 'cover'|'contain', query?: string, credit?: import('../photos.js').PhotoCredit }} ImageElement
+ * @typedef {ElementBase & { type: 'image', src: string, alt: string, fit: 'cover'|'contain', query?: string,
+ *   description?: { text: string, of: string }, credit?: import('../photos.js').PhotoCredit,
+ *   crop?: { x: number, y: number, w: number, h: number }, natural?: { w: number, h: number } }} ImageElement
  * @typedef {{ kind: 'bar'|'line'|'area'|'pie'|'stacked-bar', title?: string, categories: string[],
  *   series: { name: string, values: number[], color?: string }[], showLegend: boolean,
  *   showDataLabels?: boolean, xAxisLabel?: string, yAxisLabel?: string }} ChartSpec
