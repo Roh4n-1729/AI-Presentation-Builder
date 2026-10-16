@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D71), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D76), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -15,9 +15,10 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - Ops are id-anchored (`afterSlideId`, never indices) and fully resolved (ids, bbox, slot) before dispatch; `applyOp` only clamps. Copies are id-based. (D24)
 - AI ops join the top history entry only if it has the same `turnId`. (D25)
 - Layers: `screens → features → primitives`; `features → hooks → store → lib`; `hooks → services → store, lib`; `api → lib only`. Nothing in `lib/` knows React. Enforced by ESLint.
+- Hooks in their own file live in `src/hooks` (D76); a hook used by one component only may stay private inside that component's file.
 - `src/lib` and `api/`: relative imports with explicit `.js`; no `@/` alias; no `import.meta.env`. (D28)
 - `SlideRenderer` is the only thing that draws a slide; inline styles from schema + theme, no Tailwind classes inside slides.
-- Colors in the schema are theme roles (`text`, `accent`, …) resolved by `resolveColor`; hex only as override.
+- Colors in the schema are theme roles (`text`, `accent`, …) resolved by `resolveColor`; hex only as override. Chart series may also use palette slots `chart1`…`chart6` (`seriesColor`, D72).
 - Server streams SSE events `status | text | tool | op | error | done`; ops emitted on tool completion only.
 - Keys only in env vars. Never send image data with chat requests: the only image bytes that leave the browser are one ≤768 px JPEG per picture to `/api/describe` (D58); the AI sees that description as text.
 - Conventional Commits. Explain non-obvious code briefly; prefer simple over clever.
@@ -35,7 +36,7 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 9. Recharts: explicit width/height = bbox (no ResponsiveContainer), `pointer-events: none`.
 10. After any store change that moves a selected element (gesture commit, undo/redo, AI op, scale change), call `moveableRef.current.updateRect()` in a layout effect keyed on `[slide, scale, targets]`, or the outline and handles stay at the old rect.
 11. Never mark drag state with `classList`: React re-renders (e.g. active slide changing while scrolling) rewrite `className`. Keep it in the store (`draggingSlideId`, `dropTarget`).
-12. Scrolling mid-drag: Moveable `scrollable` + `scrollContainer` getter (a child's layout effect runs before the parent's ref is attached) + `checkScrollEvent`; replay a `mousemove` at the last pointer after scroll so the element follows a still cursor (D34).
+12. Scrolling mid-drag: Moveable `scrollable` + `scrollOptions` with a `container` getter (a child's layout effect runs before the parent's ref is attached) + `checkScrollEvent` (D74; the separate scroll props are deprecated); replay a `mousemove` at the last pointer after scroll so the element follows a still cursor (D34).
 
 ## Current status
 
@@ -80,6 +81,9 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] Start page centred when there are no saved presentations (D69)
 - [x] Follow-up chips after generation come from `plan_deck` `suggestions`; Generate button restyled (D70); 202 tests
 - [x] Light/dark toggle on the start page (`ColorSchemeToggle`, D71)
+- [x] Audit fixes: emptied project saved, Stop keeps empty slides retryable, compact tables keep their box in PPTX (measured), stricter deck ids, byte-counted body limit, chart double-click; series colours (`chart1`…`chart6` palette slots) (D72); 211 tests
+- [x] Highlighted page text wins over selected elements for Ctrl+C (D73)
+- [x] Moveable auto-scroll settings in `scrollOptions` (D74); `CanvasMoveable` release handlers named (D75); `useAiMotion` / `useMarquee` moved to `src/hooks` (D76)
 - [ ] Check stock photos on the live URL (CORS of image hosts, real limits)
 
 ## Where things are
@@ -98,9 +102,9 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - Select store values, not fresh objects: `useDeck((s) => findElement(...)?.el)`, never `useDeck((s) => findElement(...))` (new object every call = infinite re-render)
 - Tests that span client and server: `tests/flow.test.js` (stubbed fetch → real handlers → mock model)
 
-- Export: `src/lib/export/pptx.js` (pure model + writer), `src/services/pptxExport.js` (fit, images, download, deck json), `features/present/{PrintView,PresentMode}.jsx`, `features/topbar/{ExportMenu,ThemeMenu}.jsx`; box select `features/canvas/useMarquee.js`
+- Export: `src/lib/export/pptx.js` (pure model + writer), `src/services/pptxExport.js` (fit, images, download, deck json), `features/present/{PrintView,PresentMode}.jsx`, `features/topbar/{ExportMenu,ThemeMenu}.jsx`; box select `hooks/useMarquee.js`
 - Motion: never a raw duration/easing. Tailwind `duration-fast|base|move|emphasis` + `ease-standard|enter|exit`, CSS `var(--motion-*)`, JS `motion()` from `hooks/motion.js`; `tests/motion-tokens.test.js` enforces it
-- AI change animation: `features/canvas/useAiMotion.js`; speaker notes: `features/canvas/SlideNotes.jsx`; Present split button: `features/topbar/PresentButton.jsx`; panels: `features/sidepanel/PanelSlot.jsx`
+- AI change animation: `hooks/useAiMotion.js`; speaker notes: `features/canvas/SlideNotes.jsx`; Present split button: `features/topbar/PresentButton.jsx`; panels: `features/sidepanel/PanelSlot.jsx`
 - Routing (D59): React Router, routes in `src/router.jsx`, route components in `src/screens/routes.jsx` (`StartRoute`, `DeckRoute`, `PresentRoute`), paths from `lib/routes.js` (`deckPath`, `presentPath`). The URL decides the screen: navigate with `useNavigate` / `<Link>` (or `useWorkspace`, `usePresentNavigation`), never `history.*`. `ui.presenting` mirrors the present route for non-component code; don't set it directly. Never put one-off side effects (fullscreen, navigation) in effect cleanups: StrictMode runs them right after mount (D67)
 - Clipboard: `lib/clipboard.js` (payload, paste ops) + `hooks/useClipboard.js` (copy/cut/paste events); groups `lib/groups.js` (selection always completes groups); grids `lib/tabular.js`; crop `lib/crop.js` + `features/drawer/ImageCropEditor.jsx`
 - Image descriptions: `lib/imageInfo.js` (`srcFingerprint`, `currentDescription`) + `services/captions.js` (`startCaptioner`) + `api/describe.js` (`visionModel()` in `api/_lib/providers.js`)

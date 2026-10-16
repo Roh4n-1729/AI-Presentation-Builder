@@ -3,7 +3,7 @@
 Describe a deck, and the AI plans it, then fills it slide by slide through tool calls. You refine it in chat or directly on a free-form canvas: drag, resize and snap elements, drag them onto other slides, edit chart data and table cells, undo anything, then present or export to PowerPoint or PDF.
 
 - **Live:** https://ai-presentation-builder-eosin.vercel.app/
-- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (D1–D71, every decision and why) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
+- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (D1–D76, every decision and why) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
 - **Stack:** Vite + React 19 (JavaScript + JSDoc) · Vercel functions · AI SDK v7 with Sarvam `sarvam-105b` (Gemini and Groq as fallbacks) · Zustand + Immer patches · react-moveable · dnd-kit · Recharts · Tailwind v4 + shadcn/ui · pptxgenjs · React Router · IndexedDB
 
 All of the brief's seven review steps work, including step 5 (dragging a chart onto another slide's thumbnail, then asking the AI about it). Known gaps are listed honestly [below](#known-issues-and-gaps).
@@ -157,7 +157,7 @@ Light-first with a full dark mode, inspired by sarvam.ai's visual language witho
 
 ## Also built
 
-Present mode (F5, arrow keys, speaker notes with N, fade or push transitions, Esc or the last slide exits) · themes · up to 5 saved presentations in IndexedDB with autosave and a recent list · deck file export and import (.json) · URL routes with deep links and Back/Forward · insert menu (text, title, list, chart, table, image upload or URL, shapes) · chart and table data editor (paste cells from a spreadsheet or CSV) · copy, cut and paste elements (between slides and tabs) · group / ungroup (Ctrl+G) · lock · image crop and replace · box select · z-order · duplicate (Ctrl+D) · arrow-key nudge · AI changes glide into place with a brief highlight · speaker notes editor · toasts with Undo for deletions, and in-app confirmation dialogs (no browser pop-ups).
+Present mode (F5, arrow keys, speaker notes with N, fade or push transitions, Esc or the last slide exits) · themes · up to 5 saved presentations in IndexedDB with autosave and a recent list · deck file export and import (.json) · URL routes with deep links and Back/Forward · insert menu (text, title, list, chart, table, image upload or URL, shapes) · chart and table data editor (double-click a chart; series colours from the theme palette or custom; paste cells from a spreadsheet or CSV) · copy, cut and paste elements (between slides and tabs) · group / ungroup (Ctrl+G) · lock · image crop and replace · box select · z-order · duplicate (Ctrl+D) · arrow-key nudge · AI changes glide into place with a brief highlight · speaker notes editor · toasts with Undo for deletions, and in-app confirmation dialogs (no browser pop-ups).
 
 ## Known issues and gaps
 
@@ -174,7 +174,8 @@ Present mode (F5, arrow keys, speaker notes with N, fade or push transitions, Es
 - **Storage is per browser** (IndexedDB, 5 most recent presentations); there is no account or sync, by design of the brief.
 - **Rate limiting** on `/api` is in memory per serverless instance, so it is best-effort.
 - **Desktop only.** Built and checked in Chromium-based browsers with mouse and keyboard; touch and small screens aren't supported.
-- **Not built from the plan:** Indic-language decks, a "use your own API key" setting.
+- **Long chats:** the AI gets the last 8 chat messages plus a fresh description of the whole deck each turn; older messages are dropped, not summarised. The deck description is what keeps edits accurate, so this mostly loses earlier conversational context.
+- **Not built from the plan:** Indic-language decks, a "use your own API key" setting, a tone option on the start screen (tone can be given in the prompt, or changed afterwards in chat).
 
 ## AI chat transcripts
 
