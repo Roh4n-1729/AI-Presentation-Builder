@@ -31,7 +31,28 @@ export const PlanSchema = z.object({
     )
     .min(1)
     .max(12),
+  // Follow-up edits shown as chips once the deck is built (D70). Lenient limits: one long or
+  // extra suggestion must not fail the whole plan; they are clipped in cleanSuggestions.
+  suggestions: z
+    .array(z.string().max(200))
+    .max(6)
+    .optional()
+    .describe(
+      '3 short follow-up edits the user might ask for once this deck is built, specific to its slides (e.g. "Add a pricing table to slide 4"), each ≤ 60 chars',
+    ),
 });
+
+/** At most 3 distinct, non-empty suggestions of at most 80 characters. */
+export function cleanSuggestions(list) {
+  const out = [];
+  for (const raw of list ?? []) {
+    const t = String(raw).replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 80 || out.some((o) => o.toLowerCase() === t.toLowerCase())) continue;
+    out.push(t);
+    if (out.length === 3) break;
+  }
+  return out;
+}
 
 /** @returns {{ ops: object[], briefs: object[] }} */
 export function planToOps(plan) {
@@ -79,7 +100,7 @@ export function createPlanTool(ctx, { emit = () => {} } = {}) {
           throw e;
         }
         ctx.deck = next;
-        ctx.plan = { title: plan.title, briefs };
+        ctx.plan = { title: plan.title, briefs, suggestions: cleanSuggestions(plan.suggestions) };
         emit({ ops, toolName: 'plan_deck' });
         return { ok: true, slides: briefs.map((b) => ({ slideId: b.slideId, title: b.title })) };
       },

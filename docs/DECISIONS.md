@@ -55,6 +55,9 @@ When a decision changes during the build, the original record stays as written, 
 | 2026-10-16 | [D66](#d66-the-modal-closes-through-radix-never-by-unmounting)                           | The modal is closed through `open`, never unmounted while open; backdrop click cancels; a body-lock safety net                                                                                                        | D62                |
 | 2026-10-16 | [D67](#d67-present-mode-survives-strictmode-fullscreen-ends-on-the-route-change)         | Fullscreen ends when the URL stops being a Present URL (watched by DeckRoute), not in an effect cleanup                                                                                                               | D59                |
 | 2026-10-16 | [D68](#d68-audit-against-the-briefs-ai-requirements)                                     | Audit of the four AI requirements; end-to-end test for "drag a chart, the next AI turn sees it"                                                                                                                       | D11, D13, D23      |
+| 2026-10-16 | [D69](#d69-start-page-centred-when-there-are-no-saved-presentations)                     | Start page: heading and prompt centred vertically when there are no saved presentations; display font kept                                                                                                            | D40, D50           |
+| 2026-10-16 | [D70](#d70-follow-up-suggestions-come-from-the-plan-generate-reads-as-the-ai-action)     | Follow-up chips after generation come from the plan (no canned list); Generate button: sparkle, neutral when disabled, no resize grip                                                                                 | D35, D69           |
+| 2026-10-16 | [D71](#d71-lightdark-toggle-on-the-start-page)                                           | Light/dark toggle on the start page too (top-right, shared `ColorSchemeToggle`)                                                                                                                                       | D40, D50           |
 
 ---
 
@@ -741,3 +744,27 @@ When a decision changes during the build, the original record stays as written, 
 - **Keys:** read only from `process.env` in `api/` (and `scripts/`); nothing in `src` reads env or uses a `VITE_` prefix, and the production bundle contains no key names; `.env` and `.env*.local` are git-ignored; `.env.example` and the README document the variables. `/api` has a body-size limit and a per-IP rate limit (in memory, best-effort on serverless).
 - **Open points (not failures):** "patch, not regenerate" in edits rests on the granular tool set (there is no regenerate tool) and the prompt; nothing in code stops a model that deletes and re-adds everything. The `/api` endpoints are public, so the rate limit is the only guard on key spend. Whether a `.env` was ever committed can only be checked in the repository's history.
 - **Consequences:** 201 tests.
+
+### D69. Start page centred when there are no saved presentations
+
+- **Status:** Accepted (2026-10-16). Amends D40 (Start screen layout).
+- **Problem (from use):** with no drafts, the heading and prompt sat near the top of an otherwise empty page, leaving most of the screen blank below them.
+- **Decision:** `features/start/StartPanel.jsx`. Without recent projects, the heading and composer are centred vertically, a little above the middle (`my-auto` and a 6vh lift, where the eye lands first). With recent projects, the layout is unchanged: the block starts at 12vh so the Recent grid stays in view below it. The heading's font stays Instrument Serif: it is the design system's display face and the slide-title font in every theme, so the start page reads like the slides it makes.
+- **Consequences:** Browser check at 1920 × 976: without projects the block is centred at about 44% of the height; with projects the heading top is unchanged; lint and build pass.
+
+### D70. Follow-up suggestions come from the plan; Generate reads as the AI action
+
+- **Status:** Accepted (2026-10-16). Amends D35 (suggestions after generation) and D69 (start page).
+- **Problem (from use):** after generating a deck, the follow-up chips were always the same three canned lines ("Make slide 2 more concise", "Add a slide about pricing…", "Change the tone…"), whatever the deck was about. Edit turns already took theirs from the model (`finish_turn`). Separately, the Generate button on the start page looked out of place: a send arrow on a labelled button, a muddy faded saffron when disabled, and the textarea's resize grip sitting just above it.
+- **Decision:**
+  - `plan_deck` gets an optional `suggestions` field: 3 follow-up edits about this deck's slides, named by number. The plan prompt asks for them (prompt version `2026-10-16.4`). There is no extra model call: the plan request already exists. `cleanSuggestions` keeps at most 3 distinct, non-empty ones of at most 80 characters. The schema limits are deliberately loose so a long or extra suggestion can't fail the whole plan. The message stores them as `planSuggestions` and shows them when the deck is done. If the model gives none, no chips are shown rather than canned ones. After a failure or Stop, no chips are shown, as before.
+  - Start page: Generate uses the `ai` button variant with the sparkle icon (as in the chat header and the planning view) instead of an up arrow. When disabled it turns neutral (muted background, no shadow) instead of a 50% saffron. The shortcut is shown as `Kbd` keys. The textarea grows with its content (`field-sizing: content`, 4 rows to 18 rem) and has no resize grip. Browsers without `field-sizing` keep the fixed height and scroll.
+  - Unchanged: the starter examples in the empty chat panel. They are shown before any AI turn, so there is nothing yet to derive them from.
+- **Consequences:** the flow test's plan carries suggestions (one duplicated) and the finished message shows the two distinct ones; a unit test covers `cleanSuggestions`. The tool-schema portability test passes. Browser check of the start page in light and dark, empty and with six lines; lint and build pass; 202 tests.
+
+### D71. Light/dark toggle on the start page
+
+- **Status:** Accepted (2026-10-16). Amends D40 and D50.
+- **Problem (from use):** light/dark could only be switched from the editor's top bar, so the start page offered no way to change it.
+- **Decision:** the top bar's sun/moon button is extracted into `features/topbar/ColorSchemeToggle.jsx`, which the top bar and the start page both use. On the start page it sits in the top-right corner, the same place as in the editor. The scheme lives in the store and localStorage as before (D40), so the choice carries into the editor and back. The slide theme (Paper, Sage, Midnight) stays in the editor: it applies to a deck, and the start page has none yet.
+- **Consequences:** Browser check: on the start page the toggle switches dark to light and shows its tooltip; the editor opens in the chosen scheme with its own toggle; no page errors; lint and build pass.

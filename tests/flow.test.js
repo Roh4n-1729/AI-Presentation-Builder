@@ -71,6 +71,11 @@ const PLAN = {
       visual: 'none',
     },
   ],
+  suggestions: [
+    'Add a ward-by-ward chart to slide 2',
+    'Add a ward-by-ward chart to slide 2',
+    'Shorten slide 3',
+  ],
 };
 
 /** The model: plan when offered plan_deck, otherwise one content tool then finish_turn. */
@@ -108,6 +113,8 @@ describe('generate -> edit through the real endpoints (mock model)', () => {
     expect(msg).toMatchObject({ role: 'assistant', kind: 'generate', status: 'done' });
     expect(msg.progress).toEqual({ done: 3, total: 3 });
     expect(msg.chips[0].label).toBe('Planned 3 slides');
+    // Follow-ups come from the plan (deduplicated), not a canned list (D70).
+    expect(msg.suggestions).toEqual(['Add a ward-by-ward chart to slide 2', 'Shorten slide 3']);
     expect(msg.chips.filter((c) => c.label.startsWith('Added text'))).toHaveLength(3);
   });
 

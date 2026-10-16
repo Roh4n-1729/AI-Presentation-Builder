@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D68), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D71), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -77,6 +77,9 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] Reading order: prompt rule (title → subtitle → main → supporting) + generation guard `placeElement(..., { belowTitle })` (D60); 192 tests
 - [x] Toasts (Undo on deletions) + in-app confirm/prompt modal replace window.alert/confirm/prompt (D62); full slides make room on drops / AI moves (`fitOnSlide`, D63); 197 tests
 - [x] No content above the title on any layout; cover refuses content while generating, later title/section slides switch to content (D64); planning view with themed skeletons (D65); 200 tests
+- [x] Start page centred when there are no saved presentations (D69)
+- [x] Follow-up chips after generation come from `plan_deck` `suggestions`; Generate button restyled (D70); 202 tests
+- [x] Light/dark toggle on the start page (`ColorSchemeToggle`, D71)
 - [ ] Check stock photos on the live URL (CORS of image hosts, real limits)
 
 ## Where things are

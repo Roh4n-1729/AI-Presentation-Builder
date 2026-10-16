@@ -8,7 +8,7 @@ export const newMessageId = () => `m${Date.now().toString(36)}${(++msgSeq).toStr
  * @typedef {{
  *   id: string, role: 'user'|'assistant', text: string,
  *   status?: 'streaming'|'done'|'error'|'stopped', turnId?: string, kind?: 'edit'|'generate',
- *   phase?: string, activity?: string, chips?: OpChip[], skipped?: number, suggestions?: string[],
+ *   phase?: string, activity?: string, chips?: OpChip[], skipped?: number, suggestions?: string[], planSuggestions?: string[],
  *   error?: { code: string, message: string, retryAfter?: number }, provider?: string,
  *   progress?: { done: number, total: number }, failedSlides?: string[], retry?: object,
  * }} ChatMessage

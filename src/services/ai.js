@@ -244,6 +244,8 @@ export async function generateDeck(store, { prompt, slideCount }) {
     // Saved with the message, so a reload mid-run can still offer "Continue building".
     retry: { kind: 'populate', prompt, briefs: plan.briefs, total: plan.briefs.length },
     outline: plan.briefs.map((b) => b.title),
+    // The plan's follow-up edits, shown once the deck is built (D70).
+    planSuggestions: plan.suggestions ?? [],
     progress: { done: 0, total: plan.briefs.length },
     activity: null,
   });
@@ -369,14 +371,11 @@ async function populate(
     summary: aborted
       ? `Stopped. Kept ${done} of ${total} slides.`
       : `Created "${deck.title}": ${deck.slideOrder.length} slides${failed.length ? `, ${failed.length} still empty` : ''}.`,
+    // From the model's plan (D70); none rather than canned ones when it gave none.
     suggestions:
       failed.length || aborted
         ? []
-        : [
-            'Make slide 2 more concise',
-            'Add a slide about pricing before the conclusion',
-            'Change the tone to be more formal',
-          ],
+        : (store.getState().messages.find((m) => m.id === msgId)?.planSuggestions ?? []),
   });
   end(store);
 }

@@ -377,3 +377,21 @@ describe('cover-style slides while generating (D64)', () => {
     expect(r.bbox.y).toBeGreaterThanOrEqual(330 + 200);
   });
 });
+
+describe('cleanSuggestions (D70)', () => {
+  it('keeps at most 3 distinct, short, non-empty suggestions', async () => {
+    const { cleanSuggestions } = await import('./plan.js');
+    expect(
+      cleanSuggestions([
+        '  Shorten  slide 2 ',
+        'shorten slide 2',
+        '',
+        'x'.repeat(81),
+        'A',
+        'B',
+        'C',
+      ]),
+    ).toEqual(['Shorten slide 2', 'A', 'B']);
+    expect(cleanSuggestions(undefined)).toEqual([]);
+  });
+});

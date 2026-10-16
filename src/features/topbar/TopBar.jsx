@@ -2,19 +2,17 @@ import {
   CloudAlert,
   CloudCheck,
   CloudUpload,
-  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Plus,
   Redo2,
-  Sun,
   Undo2,
 } from 'lucide-react';
-import { useColorScheme } from '@/hooks/useColorScheme.js';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
+import { ColorSchemeToggle } from './ColorSchemeToggle.jsx';
 import { ExportMenu } from './ExportMenu.jsx';
 import { InsertMenu } from './InsertMenu.jsx';
 import { PresentButton } from './PresentButton.jsx';
@@ -42,7 +40,6 @@ export function TopBar() {
   const canRedo = useDeck((s) => s.future.length > 0) && !aiBusy;
   const { goToStart } = useWorkspace();
   const panels = useDeck((s) => s.panels);
-  const { scheme, toggle } = useColorScheme();
 
   return (
     <header className="grid h-13 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b bg-panel px-3">
@@ -132,11 +129,7 @@ export function TopBar() {
           <span className="hidden xl:inline">New presentation</span>
         </Button>
         <ToolbarGroup className="ml-1 border-l pl-1.5">
-          <IconButtonTip
-            icon={scheme === 'dark' ? Sun : Moon}
-            label={scheme === 'dark' ? 'Light mode' : 'Dark mode'}
-            onClick={toggle}
-          />
+          <ColorSchemeToggle />
           <IconButtonTip
             icon={panels.chat ? PanelRightClose : PanelRightOpen}
             label={panels.chat ? 'Hide side panel' : 'Show side panel'}

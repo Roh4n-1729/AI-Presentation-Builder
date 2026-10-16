@@ -3,7 +3,7 @@
 Describe a deck, and the AI plans it, then fills it slide by slide through tool calls. You refine it in chat or directly on a free-form canvas: drag, resize and snap elements, drag them onto other slides, edit chart data and table cells, undo anything, then present or export to PowerPoint or PDF.
 
 - **Live:** https://ai-presentation-builder-eosin.vercel.app/
-- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (D1–D68, every decision and why) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
+- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (D1–D71, every decision and why) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
 - **Stack:** Vite + React 19 (JavaScript + JSDoc) · Vercel functions · AI SDK v7 with Sarvam `sarvam-105b` (Gemini and Groq as fallbacks) · Zustand + Immer patches · react-moveable · dnd-kit · Recharts · Tailwind v4 + shadcn/ui · pptxgenjs · React Router · IndexedDB
 
 All of the brief's seven review steps work, including step 5 (dragging a chart onto another slide's thumbnail, then asking the AI about it). Known gaps are listed honestly [below](#known-issues-and-gaps).
