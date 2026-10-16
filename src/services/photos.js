@@ -1,14 +1,15 @@
 /*
- * Stock photos for AI-placed images (D57). The AI's add_image tool runs on the server and leaves
- * a placeholder with a search query; this browser service fills it in:
+ * Stock photos for AI-placed images (D57, D79). The AI's add_image tool runs on the server and
+ * leaves a placeholder with a search query; this browser service fills it in:
  *
- *   Openverse (no key) → Wikimedia Commons (no key) → the placeholder stays
+ *   Wikimedia Commons (no key) → the placeholder stays
  *
- * A provider is skipped while it rests after a rate-limit answer (429, or 401/403), once this
- * browser has used its daily budget, or when it errors, times out or finds nothing. Requests run
- * one at a time with a gap per provider (lib/photos.js PHOTO_LIMITS), so a deck with many images
+ * Commons is asked anonymously: there is no key to get. It is skipped while it rests after a
+ * rate-limit answer (429, or 401/403), once this browser has used its daily budget, or when it
+ * errors, times out or finds nothing; the placeholder then stays and the user can replace it.
+ * Requests run one at a time with a gap (lib/photos.js PHOTO_LIMITS), so a deck with many images
  * never bursts past a limit. Searches run in the visitor's browser, so each reviewer has their own
- * per-IP allowance; only the search query leaves the browser, never image data to /api.
+ * allowance; only the search query leaves the browser, never image data to /api.
  *
  * The picture is downloaded and stored in the deck as a data URL (≤ 1600 px, like an upload), so
  * saved decks and PPTX export don't depend on the source site later. If the host doesn't allow a
@@ -18,8 +19,6 @@ import {
   budgetCheck,
   budgetRest,
   budgetUse,
-  openverseUrl,
-  parseOpenverse,
   parseWikimedia,
   pickPhoto,
   PHOTO_PROVIDERS,
@@ -52,7 +51,6 @@ const writeJson = (key, value) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const PROVIDERS = {
-  openverse: { url: openverseUrl, parse: parseOpenverse, headers: {} },
   wikimedia: {
     url: wikimediaUrl,
     parse: parseWikimedia,
@@ -83,8 +81,8 @@ async function fetchJson(url, headers) {
 const log = (...args) => console.info('[photos]', ...args);
 
 /**
- * Find a photo for `query`: each provider in turn (Openverse, then Wikimedia Commons), each with
- * shorter forms of the query until one finds something.
+ * Find a photo for `query` on Wikimedia Commons, trying shorter forms of the query until one
+ * finds something.
  * @param {string} query
  * @param {number} aspect box width / height
  * @returns {Promise<import('../lib/photos.js').PhotoCandidate | null>}
@@ -110,12 +108,12 @@ export async function searchPhoto(query, aspect, { now = Date.now } = {}) {
       // A refused preflight for the identifying header: ask again without it.
       if (res.failed && Object.keys(p.headers).length) res = await fetchJson(p.url(q), {});
       if (res.limited) {
-        log(name, `rate limited (HTTP ${res.status}); trying the next source`);
+        log(name, `rate limited (HTTP ${res.status})`);
         writeJson(BUDGET_KEY, budgetRest(readJson(BUDGET_KEY), name, now(), res.retryAfter));
         break;
       }
       if (res.failed) {
-        log(name, `"${q}": ${res.failed}; trying the next source`);
+        log(name, `"${q}": ${res.failed}`);
         break; // the service is unreachable: shorter queries won't help
       }
       const pick = pickPhoto(p.parse(res.json), aspect);

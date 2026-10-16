@@ -47,15 +47,14 @@ documented integration.
 
 ## Stock photos (searched at runtime, D57)
 
-When the AI adds an image, the browser searches these keyless APIs for a photo. Only images under
+When the AI adds an image, the browser searches Wikimedia Commons for a photo. Commons has no API keys; requests are anonymous, within its rate limits. Only images under
 **CC0**, the **Public Domain Mark** or **CC BY** are used (no share-alike, non-commercial or
 no-derivatives licences). Each photo keeps its credit (title, author, licence, source page): it
 is shown in the image toolbar and written to the slide's speaker notes in PowerPoint export.
 
-| Service                                                          | Used for        | Terms                                                                   |
-| ---------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------- |
-| [Openverse API](https://api.openverse.org/) (WordPress)          | First search    | Anonymous use within its rate limits; per-image licence and attribution |
-| [Wikimedia Commons API](https://commons.wikimedia.org/w/api.php) | Fallback search | Per-file licence; credit author and licence                             |
+| Service                                                          | Used for     | Terms                                       |
+| ---------------------------------------------------------------- | ------------ | ------------------------------------------- |
+| [Wikimedia Commons API](https://commons.wikimedia.org/w/api.php) | Photo search | Per-file licence; credit author and licence |
 
 ## Image descriptions (D58)
 

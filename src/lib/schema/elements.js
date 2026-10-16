@@ -75,7 +75,8 @@ export const ImageElementSchema = z.object({
       text: z.string().max(400),
       url: z.string().max(1000).optional(),
       license: z.string().max(60),
-      source: z.enum(['openverse', 'wikimedia']),
+      // New photos come from Wikimedia Commons; 'openverse' only in decks saved before D79.
+      source: z.enum(['wikimedia', 'openverse']),
     })
     .optional(),
   // Crop (D53): the part of the source shown, as fractions of its width/height. The box shows

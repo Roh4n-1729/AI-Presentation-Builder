@@ -1,24 +1,27 @@
 /**
- * Stock photos for AI-placed images (D57): pure helpers, no fetch. The browser service
- * (services/photos.js) asks Openverse first and Wikimedia Commons second; both need no API key.
- * Only licences that allow any use with at most a credit line are accepted: CC0, Public Domain
- * Mark and CC BY. Share-alike, non-commercial and no-derivatives licences are skipped, so a deck
- * can be edited, cropped and shared without conditions beyond the credit.
+ * Stock photos for AI-placed images (D57, D79): pure helpers, no fetch. The browser service
+ * (services/photos.js) searches Wikimedia Commons. Commons has no API keys: anonymous requests
+ * work, within its rate limits, and can still fail (busy, blocked network), in which case the
+ * placeholder stays. Only licences that allow any use with at most a credit line are accepted:
+ * CC0, Public Domain and CC BY. Share-alike, non-commercial and no-derivatives licences are
+ * skipped, so a deck can be edited, cropped and shared without conditions beyond the credit.
  */
-
-/** @typedef {{ text: string, url?: string, license: string, source: 'openverse' | 'wikimedia' }} PhotoCredit */
-/** @typedef {{ src: string, thumb?: string, width: number, height: number, credit: PhotoCredit }} PhotoCandidate */
-
-export const PHOTO_PROVIDERS = ['openverse', 'wikimedia'];
 
 /**
- * Self-imposed limits, kept under each provider's own so a burst of image tools never trips them.
- * Openverse allows anonymous clients about 20 requests a minute and 200 a day; Wikimedia allows
- * about 200 a minute for identified clients. `gapMs` spaces requests; `perDay` is the budget per
- * browser. After a 429 the provider rests for Retry-After (or `restMs`).
+ * `source` is always 'wikimedia' for new photos; 'openverse' only appears in decks saved before
+ * Openverse was dropped (D79), and is still accepted so they load.
+ * @typedef {{ text: string, url?: string, license: string, source: 'wikimedia' | 'openverse' }} PhotoCredit
+ */
+/** @typedef {{ src: string, thumb?: string, width: number, height: number, credit: PhotoCredit }} PhotoCandidate */
+
+export const PHOTO_PROVIDERS = ['wikimedia'];
+
+/**
+ * Self-imposed limits, kept well under Wikimedia's own (about 200 requests a minute for
+ * identified clients), so a burst of image tools never trips them. `gapMs` spaces requests;
+ * `perDay` is the budget per browser. After a 429 the provider rests for Retry-After (or `restMs`).
  */
 export const PHOTO_LIMITS = {
-  openverse: { gapMs: 3500, perDay: 150, restMs: 10 * 60_000 },
   wikimedia: { gapMs: 500, perDay: 1000, restMs: 5 * 60_000 },
 };
 
@@ -57,53 +60,6 @@ export function queryVariants(query) {
     if (q && !out.includes(q) && (n <= 4 || words.length <= 5)) out.push(q);
   }
   return out;
-}
-
-// ---------------------------------------------------------------- Openverse
-
-/** Search URL: the licence filter is applied by Openverse itself. */
-export function openverseUrl(query) {
-  const p = new URLSearchParams({
-    q: query,
-    license: 'cc0,pdm,by',
-    mature: 'false',
-    page_size: '12', // anonymous clients may ask for at most 20
-  });
-  return `https://api.openverse.org/v1/images/?${p}`;
-}
-
-const OV_LICENSE = { cc0: 'CC0', pdm: 'Public domain', by: 'CC BY' };
-
-/** Openverse response → candidates (allowed licences, raster images only). */
-export function parseOpenverse(json) {
-  const results = Array.isArray(json?.results) ? json.results : [];
-  return results
-    .filter((r) => r && typeof r.url === 'string' && OV_LICENSE[r.license])
-    .filter((r) => !r.mature && !/svg|gif/i.test(r.filetype ?? ''))
-    .map((r) => {
-      const license = [OV_LICENSE[r.license], r.license === 'by' ? r.license_version : '']
-        .filter(Boolean)
-        .join(' ');
-      const by = clean(r.creator, 60);
-      const title = clean(r.title, 80);
-      return {
-        src: r.url,
-        thumb: typeof r.thumbnail === 'string' ? r.thumbnail : undefined,
-        width: Number(r.width) || 0,
-        height: Number(r.height) || 0,
-        credit: {
-          // Openverse's own attribution line when it sends one, else built from the parts.
-          text:
-            clean(r.attribution, 300) ||
-            [title ? `"${title}"` : 'Photo', by && `by ${by}`, license && `(${license})`]
-              .filter(Boolean)
-              .join(' '),
-          url: r.foreign_landing_url || undefined,
-          license,
-          source: 'openverse',
-        },
-      };
-    });
 }
 
 // ---------------------------------------------------------------- Wikimedia Commons

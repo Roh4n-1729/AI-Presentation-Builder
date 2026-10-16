@@ -282,7 +282,7 @@ describe('image query changes (D57)', () => {
       alt: 'desk',
       fit: 'cover',
       query: 'desk',
-      credit: { text: 'x', license: 'CC0', source: 'openverse' },
+      credit: { text: 'x', license: 'CC0', source: 'wikimedia' },
       bbox: { x: 100, y: 300, w: 800, h: 450 },
     };
     deck.slides.s_ccccc.elementOrder.push('el_img');

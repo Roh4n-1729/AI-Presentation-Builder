@@ -192,7 +192,8 @@ function ImageControls({ el }) {
         // Stock photo credit (D57): the licence asks for it; opens the photo's source page.
         <IconButtonTip
           icon={Info}
-          label={`${el.credit.text} · via ${el.credit.source === 'openverse' ? 'Openverse' : 'Wikimedia Commons'}`}
+          // 'openverse' only on photos saved before D79.
+          label={`${el.credit.text} · via ${el.credit.source === 'wikimedia' ? 'Wikimedia Commons' : 'Openverse'}`}
           onClick={() => el.credit.url && window.open(el.credit.url, '_blank', 'noopener')}
         />
       )}
