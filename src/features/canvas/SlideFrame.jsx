@@ -1,5 +1,7 @@
 import { memo, useMemo, useRef, useState } from 'react';
+import { useAiMotion } from '@/hooks/useAiMotion.js';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
+import { useMarquee } from '@/hooks/useMarquee.js';
 import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
 import { cn } from '@/primitives/cn.js';
 import { DropRing } from '@/primitives/DropRing.jsx';
@@ -9,8 +11,6 @@ import { SlideRenderer } from '@/features/slide/SlideRenderer.jsx';
 import { CanvasMoveable } from './CanvasMoveable.jsx';
 import { FloatingToolbar } from './FloatingToolbar.jsx';
 import { pendingDrag } from './pendingDrag.js';
-import { useAiMotion } from './useAiMotion.js';
-import { useMarquee } from './useMarquee.js';
 
 /** Editor callbacks for the renderer. Built once: handlers read fresh state at call time. */
 function useInteraction() {

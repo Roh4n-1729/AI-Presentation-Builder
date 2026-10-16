@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from 'react';
-import { motion } from '@/hooks/motion.js';
+import { motion } from './motion.js';
 
 const sameBox = (a, b) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 

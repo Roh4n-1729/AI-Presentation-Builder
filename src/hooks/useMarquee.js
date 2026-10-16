@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { getDeckState } from '@/hooks/useDeck.js';
+import { getDeckState } from './useDeck.js';
 import { expandToGroups } from '@/lib/groups.js';
 
 const THRESHOLD = 4; // px of movement before a press on the background becomes a box select

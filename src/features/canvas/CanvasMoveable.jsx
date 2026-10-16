@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Moveable from 'react-moveable';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { remapGroups } from '@/lib/groups.js';
@@ -7,7 +7,8 @@ import { fitOnSlide, shiftGroup } from '@/lib/layout/index.js';
 import { pendingDrag } from './pendingDrag.js';
 
 const ALL_SIDES = { top: true, left: true, bottom: true, right: true, center: true, middle: true };
-const SCROLL_OPTIONS = { checkScrollEvent: true };
+/** Resize handles: four corners and four edges (no rotation handle). */
+const HANDLES = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
 
 /** Ops for the elements that gave up room on a full slide (D63). */
 const makeRoomOps = (fit) =>
@@ -83,6 +84,16 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
   // when the drag starts: on first mount a child's layout effect runs before the parent's ref is
   // attached, so reading frameRef.current eagerly would find nothing.
   const getScroller = () => frameRef.current?.closest('[data-scroll-column]') ?? null;
+  // Auto-scroll settings in one object (react-moveable 0.56 deprecates the separate
+  // scrollContainer / scrollThreshold / scrollThrottleTime props, D74): start within 60 px of the
+  // column's edge, repeat every 16 ms while the pointer stays there. checkScrollEvent: a wheel
+  // scroll mid-drag also shifts the gesture. Memoised so Moveable sees one stable object.
+  const scrollOptions = useMemo(
+    () => ({ container: getScroller, threshold: 60, throttleTime: 16, checkScrollEvent: true }),
+    // getScroller only reads frameRef at call time, so the first one stays valid.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const selectedHere = selection.filter((id) => slide.elements[id] && id !== editingId);
   const selectedKey = selectedHere.join(',');
@@ -186,7 +197,7 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
 
   const bboxOf = (node) => slide.elements[node.dataset.elId].bbox;
 
-  // Auto-scroll: Moveable reports the pointer within `scrollThreshold` of the column's top or
+  // Auto-scroll: Moveable reports the pointer within `threshold` of the column's top or
   // bottom edge; we scroll, and `checkScrollEvent` makes Moveable shift the gesture by the scroll
   // offset so the element stays under the cursor (also when the user scrolls with the wheel).
   // Horizontal direction set = pointer is over the filmstrip or chat: don't scroll then.
@@ -199,6 +210,165 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
     queueMicrotask(() => replayPointer(g));
   };
   const dispatch = (ops, label) => getDeckState().dispatch(ops, { label });
+
+  /**
+   * Release of a single drag: onto another slide's frame (lands where released, converted into
+   * that slide's artboard units), onto a filmstrip thumbnail (nearest free spot, D61/D63), or a
+   * plain move on this slide. Alt copies. One dispatch = one undo step.
+   */
+  const onDragEnd = (e) => {
+    const g = gesture.current;
+    if (!g || g.cancelled || !e.lastEvent) return end();
+    const id = e.target.dataset.elId;
+    const [tx, ty] = e.lastEvent.beforeTranslate;
+    const old = bboxOf(e.target);
+    const p = g.pointer ?? { x: e.clientX, y: e.clientY, alt: false };
+    const copy = e.inputEvent?.altKey ?? p.alt;
+    const hit = hitTest(p.x, p.y);
+    const elRect = e.target.getBoundingClientRect(); // measure BEFORE end() resets the transform
+    end();
+
+    if (hit?.kind === 'frame') {
+      // Adjacent slide: convert the screen position into that slide's artboard units.
+      const ab = hit.node.querySelector('.artboard').getBoundingClientRect();
+      const bbox = {
+        ...old,
+        x: (elRect.left - ab.left) / scale,
+        y: (elRect.top - ab.top) / scale,
+      };
+      dispatch(
+        {
+          type: 'move_element',
+          elementId: id,
+          toSlideId: hit.slideId,
+          newId: copy ? newElementId() : undefined,
+          bbox,
+        },
+        copy ? 'Copy element to slide' : 'Move element to slide',
+      );
+    } else if (hit?.kind === 'thumb') {
+      // Thumbnail: no precise point, so a free spot near the old position, shrinking if
+      // needed; on a full slide the elements in the way give up room (D61, D63). Resolved
+      // here (D24); one dispatch, one undo step.
+      const target = getDeckState().deck.slides[hit.slideId];
+      const fit = fitOnSlide(target, [old]);
+      dispatch(
+        [
+          {
+            type: 'move_element',
+            elementId: id,
+            toSlideId: hit.slideId,
+            newId: copy ? newElementId() : undefined,
+            bbox: fit.boxes[0],
+          },
+          ...makeRoomOps(fit),
+        ],
+        copy ? 'Copy element to slide' : 'Move element to slide',
+      );
+    } else {
+      dispatch(
+        { type: 'move_element', elementId: id, bbox: { ...old, x: old.x + tx, y: old.y + ty } },
+        'Move element',
+      );
+    }
+  };
+
+  /**
+   * Release of a group drag (multi-select, or a group). Same drop rules as a single drag (D54):
+   * onto another slide's frame each element lands where it was released; onto a thumbnail the
+   * group keeps its arrangement in the nearest free spot; either way the group is shifted inside
+   * the artboard as one piece. Alt copies (the copies form a new group). A click without a drag
+   * selects the element under the pointer (D56). One dispatch = one undo step.
+   */
+  const onDragGroupEnd = (e) => {
+    const g = gesture.current;
+    if (!g || g.cancelled) return end();
+    if (!e.isDrag) {
+      end();
+      clickInSelection(slide, targets, e);
+      return;
+    }
+    const p = g.pointer ?? { x: e.clientX, y: e.clientY, alt: false };
+    const copy = e.inputEvent?.altKey ?? p.alt;
+    const hit = hitTest(p.x, p.y);
+    const members = e.events.map((ev) => ({
+      id: ev.target.dataset.elId,
+      old: bboxOf(ev.target),
+      delta: ev.lastEvent?.beforeTranslate ?? [0, 0],
+      rect: ev.target.getBoundingClientRect(), // measure BEFORE end() resets the transforms
+    }));
+    end();
+
+    if (!hit) {
+      const ops = members.map((m) => ({
+        type: 'move_element',
+        elementId: m.id,
+        bbox: { ...m.old, x: m.old.x + m.delta[0], y: m.old.y + m.delta[1] },
+      }));
+      dispatch(ops, `Move ${ops.length} elements`);
+      return;
+    }
+
+    let boxes;
+    let roomOps = [];
+    if (hit.kind === 'frame') {
+      // Release point on the other slide, converted into its artboard units.
+      const ab = hit.node.querySelector('.artboard').getBoundingClientRect();
+      const dropped = members.map((m) => ({
+        ...m.old,
+        x: (m.rect.left - ab.left) / scale,
+        y: (m.rect.top - ab.top) / scale,
+      }));
+      boxes = shiftGroup(dropped, 0, 0);
+    } else {
+      const target = getDeckState().deck.slides[hit.slideId];
+      const fit = fitOnSlide(
+        target,
+        members.map((m) => m.old),
+      );
+      boxes = fit.boxes;
+      roomOps = makeRoomOps(fit);
+    }
+
+    const els = members.map((m) => slide.elements[m.id]);
+    const groups = copy ? remapGroups(els, newGroupId) : {};
+    const ops = [];
+    members.forEach((m, i) => {
+      const newId = copy ? newElementId() : undefined;
+      ops.push({
+        type: 'move_element',
+        elementId: m.id,
+        toSlideId: hit.slideId,
+        newId,
+        bbox: boxes[i],
+      });
+      const gid = els[i]?.groupId;
+      if (copy && gid)
+        ops.push({ type: 'update_element', elementId: newId, patch: { groupId: groups[gid] } });
+    });
+    ops.push(...roomOps);
+    const n = members.length;
+    dispatch(ops, copy ? `Copy ${n} elements to slide` : `Move ${n} elements to slide`);
+  };
+
+  /** Release of a resize: the new size, plus the shift of the dragged edge or corner. */
+  const onResizeEnd = (e) => {
+    const g = gesture.current;
+    if (!g || g.cancelled || !e.lastEvent) return end();
+    const { width, height, drag } = e.lastEvent;
+    const [tx, ty] = drag.beforeTranslate;
+    const old = bboxOf(e.target);
+    const id = e.target.dataset.elId;
+    end();
+    dispatch(
+      {
+        type: 'update_element',
+        elementId: id,
+        patch: { bbox: { ...old, x: old.x + tx, y: old.y + ty, w: width, h: height } },
+      },
+      'Resize element',
+    );
+  };
 
   if (targets.length === 0) return null;
   const single = targets.length === 1;
@@ -222,12 +392,9 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
         elementGuidelines={guides}
         snapDirections={ALL_SIDES}
         elementSnapDirections={ALL_SIDES}
-        renderDirections={['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se']}
+        renderDirections={HANDLES}
         scrollable
-        scrollContainer={getScroller}
-        scrollThreshold={60}
-        scrollThrottleTime={16}
-        scrollOptions={SCROLL_OPTIONS}
+        scrollOptions={scrollOptions}
         onScroll={onAutoScroll}
         onScrollGroup={onAutoScroll}
         /* ---- single drag ---- */
@@ -241,71 +408,8 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
           getDeckState().setDropTarget(hit?.slideId ?? null, copy);
           setBadge(hit ? { x: e.clientX, y: e.clientY, copy } : null);
         }}
-        onDragEnd={(e) => {
-          const g = gesture.current;
-          if (!g || g.cancelled || !e.lastEvent) return end();
-          const id = e.target.dataset.elId;
-          const [tx, ty] = e.lastEvent.beforeTranslate;
-          const old = bboxOf(e.target);
-          const p = g.pointer ?? { x: e.clientX, y: e.clientY, alt: false };
-          const copy = e.inputEvent?.altKey ?? p.alt;
-          const hit = hitTest(p.x, p.y);
-          const elRect = e.target.getBoundingClientRect(); // measure BEFORE end() resets the transform
-          end();
-
-          if (hit?.kind === 'frame') {
-            // Adjacent slide: convert the screen position into that slide's artboard units.
-            const ab = hit.node.querySelector('.artboard').getBoundingClientRect();
-            const bbox = {
-              ...old,
-              x: (elRect.left - ab.left) / scale,
-              y: (elRect.top - ab.top) / scale,
-            };
-            dispatch(
-              {
-                type: 'move_element',
-                elementId: id,
-                toSlideId: hit.slideId,
-                newId: copy ? newElementId() : undefined,
-                bbox,
-              },
-              copy ? 'Copy element to slide' : 'Move element to slide',
-            );
-          } else if (hit?.kind === 'thumb') {
-            // Thumbnail: no precise point, so a free spot near the old position, shrinking if
-            // needed; on a full slide the elements in the way give up room (D61, D63). Resolved
-            // here (D24); one dispatch, one undo step.
-            const target = getDeckState().deck.slides[hit.slideId];
-            const fit = fitOnSlide(target, [old]);
-            dispatch(
-              [
-                {
-                  type: 'move_element',
-                  elementId: id,
-                  toSlideId: hit.slideId,
-                  newId: copy ? newElementId() : undefined,
-                  bbox: fit.boxes[0],
-                },
-                ...makeRoomOps(fit),
-              ],
-              copy ? 'Copy element to slide' : 'Move element to slide',
-            );
-          } else {
-            dispatch(
-              {
-                type: 'move_element',
-                elementId: id,
-                bbox: { ...old, x: old.x + tx, y: old.y + ty },
-              },
-              'Move element',
-            );
-          }
-        }}
-        /* ---- group drag (multi-select, or a group) ----
-           Same drop rules as a single drag (D54): onto another slide's frame each element lands
-           where it was released; onto a thumbnail the group keeps its arrangement in the nearest
-           free spot; either way the group is shifted inside the artboard as one piece. Alt
-           copies (the copies form a new group). One dispatch = one undo step. */
+        onDragEnd={onDragEnd}
+        /* ---- group drag (multi-select, or a group) ---- */
         onDragGroupStart={(e) => begin(e.events.map((ev) => ev.target))}
         onDragGroup={(e) => {
           if (gesture.current?.cancelled) return;
@@ -318,80 +422,7 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
           getDeckState().setDropTarget(hit?.slideId ?? null, copy);
           setBadge(hit ? { x: e.clientX, y: e.clientY, copy } : null);
         }}
-        onDragGroupEnd={(e) => {
-          const g = gesture.current;
-          if (!g || g.cancelled) return end();
-          if (!e.isDrag) {
-            end();
-            clickInSelection(slide, targets, e);
-            return;
-          }
-          const p = g.pointer ?? { x: e.clientX, y: e.clientY, alt: false };
-          const copy = e.inputEvent?.altKey ?? p.alt;
-          const hit = hitTest(p.x, p.y);
-          const members = e.events.map((ev) => ({
-            id: ev.target.dataset.elId,
-            old: bboxOf(ev.target),
-            delta: ev.lastEvent?.beforeTranslate ?? [0, 0],
-            rect: ev.target.getBoundingClientRect(), // measure BEFORE end() resets the transforms
-          }));
-          end();
-
-          if (!hit) {
-            const ops = members.map((m) => ({
-              type: 'move_element',
-              elementId: m.id,
-              bbox: { ...m.old, x: m.old.x + m.delta[0], y: m.old.y + m.delta[1] },
-            }));
-            dispatch(ops, `Move ${ops.length} elements`);
-            return;
-          }
-
-          let boxes;
-          let roomOps = [];
-          if (hit.kind === 'frame') {
-            // Release point on the other slide, converted into its artboard units.
-            const ab = hit.node.querySelector('.artboard').getBoundingClientRect();
-            const dropped = members.map((m) => ({
-              ...m.old,
-              x: (m.rect.left - ab.left) / scale,
-              y: (m.rect.top - ab.top) / scale,
-            }));
-            boxes = shiftGroup(dropped, 0, 0);
-          } else {
-            const target = getDeckState().deck.slides[hit.slideId];
-            const fit = fitOnSlide(
-              target,
-              members.map((m) => m.old),
-            );
-            boxes = fit.boxes;
-            roomOps = makeRoomOps(fit);
-          }
-
-          const els = members.map((m) => slide.elements[m.id]);
-          const groups = copy ? remapGroups(els, newGroupId) : {};
-          const ops = [];
-          members.forEach((m, i) => {
-            const newId = copy ? newElementId() : undefined;
-            ops.push({
-              type: 'move_element',
-              elementId: m.id,
-              toSlideId: hit.slideId,
-              newId,
-              bbox: boxes[i],
-            });
-            const gid = els[i]?.groupId;
-            if (copy && gid)
-              ops.push({
-                type: 'update_element',
-                elementId: newId,
-                patch: { groupId: groups[gid] },
-              });
-          });
-          ops.push(...roomOps);
-          const n = members.length;
-          dispatch(ops, copy ? `Copy ${n} elements to slide` : `Move ${n} elements to slide`);
-        }}
+        onDragGroupEnd={onDragGroupEnd}
         /* ---- resize ---- */
         onResizeStart={(e) => begin([e.target])}
         onResize={(e) => {
@@ -400,23 +431,7 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
           e.target.style.height = `${e.height}px`;
           e.target.style.transform = e.drag.transform;
         }}
-        onResizeEnd={(e) => {
-          const g = gesture.current;
-          if (!g || g.cancelled || !e.lastEvent) return end();
-          const { width, height, drag } = e.lastEvent;
-          const [tx, ty] = drag.beforeTranslate;
-          const old = bboxOf(e.target);
-          const id = e.target.dataset.elId;
-          end();
-          dispatch(
-            {
-              type: 'update_element',
-              elementId: id,
-              patch: { bbox: { ...old, x: old.x + tx, y: old.y + ty, w: width, h: height } },
-            },
-            'Resize element',
-          );
-        }}
+        onResizeEnd={onResizeEnd}
       />
       {badge && (
         <div className="drop-badge" style={{ left: badge.x + 16, top: badge.y + 16 }}>

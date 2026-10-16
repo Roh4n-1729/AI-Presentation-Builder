@@ -3,7 +3,6 @@ import { LayoutTemplate } from 'lucide-react';
 import { useActiveSlideTracker } from '@/hooks/useActiveSlideTracker.js';
 import { useDeck, useDeckActions } from '@/hooks/useDeck.js';
 import { useFitScale } from '@/hooks/useFitScale.js';
-import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { InsertBetween } from './InsertBetween.jsx';

@@ -12,7 +12,6 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <RouterProvider router={router} />
-      {/* Toasts and the confirm / prompt modal (D62), shared by every screen. */}
       <Toaster />
       <AppDialog />
     </TooltipProvider>
