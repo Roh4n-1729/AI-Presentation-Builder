@@ -10,7 +10,7 @@ let entrySeq = 0;
 /**
  * @typedef {{ id: string, label: string, source: 'user'|'ai', turnId: string|null,
  *   patches: import('immer').Patch[], inversePatches: import('immer').Patch[], opCount: number }} HistoryEntry
- * @typedef {{ label?: string, source?: 'user'|'ai', turnId?: string|null }} DispatchMeta
+ * @typedef {{ label?: string, source?: 'user'|'ai', turnId?: string|null, record?: boolean }} DispatchMeta
  * @typedef {{ ok: true, changed: boolean, historyEntryId?: string } | { ok: false, error: { code: string, message: string } }} DispatchResult
  */
 
@@ -34,11 +34,19 @@ let flashSeq = 0;
 /** Record which elements an AI op touched so their slide can glow them (saffron = the AI, D17). */
 function flashFor(prev, deck, patches) {
   const { slideIds, elementIds } = touchedIds(patches);
+  // Elements an op deleted from a slide (the canvas fades a ghost of them out, D48).
+  const removed = {};
+  for (const { op, path } of patches) {
+    if (op === 'remove' && path[0] === 'slides' && path[2] === 'elements' && path.length === 4)
+      (removed[path[1]] ??= []).push(path[3]);
+  }
   const next = { ...prev };
   for (const sid of slideIds) {
     if (!deck.slides[sid]) continue;
     const ids = elementIds.filter((id) => deck.slides[sid].elements[id]);
-    if (ids.length) next[sid] = { elementIds: ids, seq: ++flashSeq };
+    const removedIds = (removed[sid] ?? []).filter((id) => !deck.slides[sid].elements[id]);
+    if (ids.length || removedIds.length)
+      next[sid] = { elementIds: ids, removedIds, seq: ++flashSeq };
   }
   return next;
 }
@@ -87,7 +95,7 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
   dispatch(input, meta = {}) {
     const ops = Array.isArray(input) ? input : [input];
     if (ops.length === 0) return { ok: true, changed: false };
-    const { label = ops[0]?.type ?? 'edit', source = 'user', turnId = null } = meta;
+    const { label = ops[0]?.type ?? 'edit', source = 'user', turnId = null, record = true } = meta;
 
     let next, patches, inversePatches;
     try {
@@ -104,6 +112,13 @@ export const createDeckSlice = (initialDeck) => (set, get) => ({
       return { ok: false, error };
     }
     if (patches.length === 0) return { ok: true, changed: false };
+
+    if (!record) {
+      // Metadata the user didn't make and wouldn't undo (an image description, D58): applied
+      // through the same op path, but no history entry, and redo stays available.
+      set((s) => ({ deck: next, revision: s.revision + 1, ...reconcileUi(s, next) }));
+      return { ok: true, changed: true };
+    }
 
     let entryId;
     set((s) => {

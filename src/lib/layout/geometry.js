@@ -70,3 +70,35 @@ export function findFreeSpot(slide, size, near, ignoreId) {
   const fallback = near ?? { x: (ARTBOARD_W - box.w) / 2, y: (ARTBOARD_H - box.h) / 2 };
   return clampBBox({ ...box, ...fallback });
 }
+
+/** The smallest box around `boxes`. */
+export function unionBox(boxes) {
+  const x = Math.min(...boxes.map((b) => b.x));
+  const y = Math.min(...boxes.map((b) => b.y));
+  const r = Math.max(...boxes.map((b) => b.x + b.w));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.h));
+  return { x, y, w: r - x, h: bottom - y };
+}
+
+/**
+ * Move several boxes by (dx, dy) as one piece, then shift the piece (not each box) back inside
+ * the artboard, so a group dropped near an edge keeps its arrangement instead of having its
+ * members clamped one by one (D54). Boxes larger than the artboard are left to clampBBox.
+ */
+export function shiftGroup(boxes, dx, dy) {
+  const moved = boxes.map((b) => ({ ...b, x: b.x + dx, y: b.y + dy }));
+  const u = unionBox(moved);
+  const fx = Math.min(Math.max(u.x, 0), Math.max(0, ARTBOARD_W - u.w)) - u.x;
+  const fy = Math.min(Math.max(u.y, 0), Math.max(0, ARTBOARD_H - u.h)) - u.y;
+  return moved.map((b) => ({ ...b, x: Math.round(b.x + fx), y: Math.round(b.y + fy) }));
+}
+
+/**
+ * Where a group dropped on a slide's thumbnail lands: the free spot (for the group's outline)
+ * nearest its old position, every member keeping its offset within the group (D54).
+ */
+export function groupToFreeSpot(slide, boxes) {
+  const u = unionBox(boxes);
+  const spot = findFreeSpot(slide, { w: u.w, h: u.h }, { x: u.x, y: u.y });
+  return shiftGroup(boxes, spot.x - u.x, spot.y - u.y);
+}

@@ -16,7 +16,13 @@ const box = (b) => `(${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${
 
 /** One line per element: id, kind, box, a content preview. */
 export function describeElement(el) {
-  const flags = [el.locked && 'locked', el.slot && `slot=${el.slot}`].filter(Boolean).join(' ');
+  const flags = [
+    el.locked && 'locked',
+    el.slot && `slot=${el.slot}`,
+    el.groupId && `group=${el.groupId}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
   const head = `${el.id} ${el.type === 'text' ? `text/${el.role}` : el.type} ${box(el.bbox)}${flags ? ` ${flags}` : ''}`;
   switch (el.type) {
     case 'text':
@@ -29,7 +35,10 @@ export function describeElement(el) {
     case 'table':
       return `${head} ${el.rows.length}x${el.rows[0]?.length ?? 0} header=[${clip(el.rows[0]?.join(', '), 80)}]`;
     case 'image':
-      return `${head} "${clip(el.alt || el.query || 'image', 60)}"${el.src ? '' : ' (placeholder)'}`;
+      // What the picture shows (D58) when a vision model has described it; else alt / query.
+      return `${head} "${clip(el.alt || el.query || 'image', 60)}"${el.src ? '' : ' (placeholder)'}${
+        el.description?.text ? ` shows: "${clip(el.description.text, 240)}"` : ''
+      }`;
     case 'shape':
       return `${head} ${el.shape} fill=${el.fill}`;
     default:

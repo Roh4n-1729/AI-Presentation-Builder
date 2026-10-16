@@ -3,6 +3,7 @@ import { getDeckState, useDeck } from './useDeck.js';
 
 const SCHEME_KEY = 'aipb:theme';
 const PANELS_KEY = 'aipb:panels';
+const SIDE_KEY = 'aipb:sideWidth';
 
 const read = (key) => {
   try {
@@ -39,6 +40,16 @@ export function useColorScheme() {
 export function useChromePrefs() {
   const scheme = useDeck((s) => s.colorScheme);
   const panels = useDeck((s) => s.panels);
+  const sideWidth = useDeck((s) => s.sideWidth);
+
+  useEffect(() => {
+    const w = Number(read(SIDE_KEY));
+    if (w) getDeckState().setSideWidth(w);
+  }, []);
+
+  useEffect(() => {
+    write(SIDE_KEY, String(sideWidth));
+  }, [sideWidth]);
 
   useEffect(() => {
     try {

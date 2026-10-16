@@ -9,3 +9,4 @@ const nano = customAlphabet('abcdefghijkmnpqrstuvwxyz23456789', 7);
 export const slideId = () => `s_${nano()}`;
 export const elementId = () => `el_${nano()}`;
 export const turnId = () => `t_${nano()}`;
+export const groupId = () => `g_${nano()}`;

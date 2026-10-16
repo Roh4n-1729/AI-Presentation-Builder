@@ -11,3 +11,6 @@ export const PLACEMENT_GRID = 40;
 
 /** Smallest box an element can be resized to. */
 export const MIN_SIZE = 24;
+
+/** Right-hand panel width in px; the AI chat and the data editor share it (D46). */
+export const SIDE_WIDTH = { min: 320, default: 360, wide: 560, max: 760 };

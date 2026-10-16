@@ -5,6 +5,17 @@ import { applyOp, findElement, OpError } from '../ops/index.js';
 import { createSlide } from '../factories.js';
 import { CHART_KINDS, SHAPES, TEXT_ROLES } from '../schema/elements.js';
 import { LAYOUTS } from '../schema/deck.js';
+import { isEmptySeries } from '../chart.js';
+import { ARTBOARD_H, SAFE_MARGIN } from '../constants.js';
+import { tableBoxAt } from '../tabular.js';
+
+/** Charts get only series with numbers (D51); null when nothing would be left to draw. */
+const dropEmptySeries = (series) => {
+  const kept = series.filter((s) => !isEmptySeries(s));
+  return kept.length ? kept : null;
+};
+const EMPTY_SERIES_ERROR =
+  'INVALID: every series is empty or all zero. Send at least one series with the real numbers, or use add_text instead.';
 
 /*
  * Model-facing tools (D11, D24). Thin wrappers: validate the input (Zod), resolve everything the
@@ -93,12 +104,18 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
     const slide = slideOf(input.slideId);
     if (!slide) return noSlide(input.slideId);
     const id = newElementId();
-    const { bbox, slot } = placeElement(
+    const placed = placeElement(
       slide,
       { ...partial, bbox: explicitBox(input) },
       input.slot,
       { avoidOverlap: true }, // models guess coordinates; never stack on existing content (D41)
     );
+    const { slot } = placed;
+    // A table placed in a slot starts one row height per row, not the whole slot (D56).
+    const bbox =
+      partial.type === 'table' && !explicitBox(input)
+        ? tableBoxAt(placed.bbox, partial.rows.length, ARTBOARD_H - SAFE_MARGIN)
+        : placed.bbox;
     const element = { ...partial, id, bbox, ...(slot ? { slot } : {}) };
     return (
       commit(toolName, [{ type: 'add_element', slideId: slide.id, element }]) ?? {
@@ -260,7 +277,9 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
     add_chart: {
       description:
         'Add a real chart. kind: bar | line | area | pie | stacked-bar. Every series needs exactly one number per category. ' +
-        'Pie uses the first series only. Use real numbers from the user or the slide; never invent precise financials without saying they are illustrative.',
+        'Choose the kind by the data: bar to compare categories (segments, TAM/SAM/SOM, plans), line or area only for one measure over time, pie for parts of one whole (max 6 slices), stacked-bar for parts across categories. ' +
+        'Only send series that have real numbers: no placeholder or all-zero series. Pie uses the first series only. ' +
+        'Use real numbers from the user or the slide; never invent precise financials without saying they are illustrative.',
       inputSchema: z.object({
         slideId: slideIdField,
         kind: z.enum(CHART_KINDS),
@@ -275,19 +294,22 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
         yAxisLabel: z.string().max(40).optional(),
         ...boxFields,
       }),
-      execute: (i) =>
-        addElement('add_chart', i, {
+      execute: (i) => {
+        const series = dropEmptySeries(i.series);
+        if (!series) return { ok: false, error: EMPTY_SERIES_ERROR };
+        return addElement('add_chart', i, {
           type: 'chart',
           chart: {
             kind: i.kind,
             ...(i.title ? { title: i.title } : {}),
             categories: i.categories,
-            series: i.series,
+            series,
             showLegend: i.showLegend ?? true,
             ...(i.xAxisLabel ? { xAxisLabel: i.xAxisLabel } : {}),
             ...(i.yAxisLabel ? { yAxisLabel: i.yAxisLabel } : {}),
           },
-        }),
+        });
+      },
     },
     add_table: {
       description:
@@ -306,10 +328,10 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
     },
     add_image: {
       description:
-        'Add an image. Give a short stock-photo search query (e.g. "team planning whiteboard") and alt text; it shows as a placeholder the user can replace.',
+        'Add an image. query: 2-4 plain English words naming what the photo shows, most important first (e.g. "composting facility", "team whiteboard"); no place names or sentences. alt: a full description. A matching openly licensed photo is filled in, or a placeholder the user can replace.',
       inputSchema: z.object({
         slideId: slideIdField,
-        query: z.string().max(100),
+        query: z.string().max(100).describe('2-4 words, e.g. "solar panels"'),
         alt: z.string().max(200),
         ...boxFields,
       }),
@@ -485,7 +507,7 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
     // ---------------------------------------------------------------- charts
     update_chart_data: {
       description:
-        "Replace a chart's categories and/or series (keeps its type and position). One value per category in every series.",
+        "Replace a chart's categories and/or series (keeps its type and position). One value per category in every series; no placeholder or all-zero series.",
       inputSchema: z.object({
         elementId: z.string(),
         title: z.string().max(80).optional(),
@@ -500,10 +522,12 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
         const hit = findElement(ctx.deck, elementId);
         if (!hit || hit.el.type !== 'chart')
           return { ok: false, error: `NOT_FOUND: ${elementId} is not a chart` };
+        const kept = series ? dropEmptySeries(series) : undefined;
+        if (series && !kept) return { ok: false, error: EMPTY_SERIES_ERROR };
         const chart = {
           ...(title !== undefined ? { title } : {}),
           ...(categories ? { categories } : {}),
-          ...(series ? { series } : {}),
+          ...(kept ? { series: kept } : {}),
         };
         return (
           commit('update_chart_data', [
@@ -578,7 +602,11 @@ export function buildElementPatch(deck, i) {
   }
   if (i.query !== undefined || i.alt !== undefined) {
     if (el.type !== 'image') return wrong('query/alt');
-    if (i.query !== undefined) patch.query = i.query;
+    if (i.query !== undefined && i.query !== el.query) {
+      // A new query asks for a different picture: back to a placeholder, which the browser
+      // fills with a matching stock photo (D57).
+      Object.assign(patch, { query: i.query, src: '', credit: null, crop: null, natural: null });
+    }
     if (i.alt !== undefined) patch.alt = i.alt;
   }
   if (i.fill !== undefined) {

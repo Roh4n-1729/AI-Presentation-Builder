@@ -7,6 +7,7 @@ import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { InsertBetween } from './InsertBetween.jsx';
+import { SlideNotes } from './SlideNotes.jsx';
 import { SlideFrame } from './SlideFrame.jsx';
 import './canvas.css';
 
@@ -32,10 +33,12 @@ export function SlideColumn() {
   }, [reveal]);
 
   return (
+    // `isolate`: everything on the canvas (Moveable's z-index 3000 handles, toolbar, flashes)
+    // stacks inside this column, so menus and tooltips (portals on <body>) always draw above it.
     <div
       ref={paneRef}
       data-scroll-column
-      className="flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto bg-canvas px-16 pt-10 pb-32"
+      className="isolate flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto bg-canvas px-16 pt-10 pb-32"
     >
       {slideOrder.length === 0 && aiBusy ? (
         <PlanningPlaceholder scale={scale} />
@@ -54,6 +57,7 @@ export function SlideColumn() {
         slideOrder.map((id, i) => (
           <div key={id} className="flex flex-col items-center">
             <SlideFrame slideId={id} index={i} scale={scale} theme={theme} />
+            <SlideNotes slideId={id} scale={scale} />
             <InsertBetween afterSlideId={id} />
           </div>
         ))

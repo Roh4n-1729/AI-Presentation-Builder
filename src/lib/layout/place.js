@@ -14,7 +14,7 @@ const occupiedSlots = (slide, ignoreId) =>
 
 const NO_TITLE_BAND = new Set(['blank', 'title', 'section']);
 /** Auto-placed non-title content never goes into the title band (above the content area). */
-const minYFor = (slide, kind) =>
+export const minYFor = (slide, kind) =>
   kind === 'title' || NO_TITLE_BAND.has(slide.layout) ? 0 : CONTENT_TOP;
 
 const GAP = 24; // breathing room kept between a slot's content and an element already there

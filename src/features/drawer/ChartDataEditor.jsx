@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { useDeckActions } from '@/hooks/useDeck.js';
 import { hasAxes, legendAvailable } from '@/lib/chart.js';
+import { chartFromGrid, looksLikeGrid, parseGrid } from '@/lib/tabular.js';
 import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { CellInput } from './fields.jsx';
@@ -94,6 +95,25 @@ export function ChartDataEditor({ el }) {
       ),
     }));
 
+  // Paste cells from a spreadsheet (or CSV text) anywhere in the data grid: replaces the data,
+  // keeps the chart type and options. One undo step (D53).
+  const [pasteNote, setPasteNote] = useState('');
+  const onPaste = (e) => {
+    const text = e.clipboardData.getData('text/plain');
+    if (!looksLikeGrid(text)) return; // a single value: normal paste into the cell
+    e.preventDefault();
+    const r = chartFromGrid(parseGrid(text));
+    if (!r.ok) {
+      setPasteNote(r.error);
+      return;
+    }
+    const series = r.series.map((x) => ({ ...x, values: x.values.map(String) }));
+    apply({ ...draft, categories: r.categories, series }, 'Paste chart data');
+    setPasteNote(
+      `Pasted ${r.categories.length} rows, ${series.length} series${r.note ? ` (${r.note})` : ''}.`,
+    );
+  };
+
   const pie = draft.kind === 'pie';
   // A pie shows one series: edit just that one, so the grid has room for full category names.
   const visibleSeries = pie ? draft.series.slice(0, 1) : draft.series;
@@ -109,7 +129,7 @@ export function ChartDataEditor({ el }) {
               onClick={() => apply({ ...draft, kind: k }, 'Change chart type')}
               aria-pressed={draft.kind === k}
               className={cn(
-                'rounded-md border px-2.5 py-1 text-label transition-colors duration-120',
+                'rounded-md border px-2.5 py-1 text-label transition-colors duration-fast',
                 draft.kind === k ? 'border-user bg-user-soft text-user' : 'hover:bg-subtle',
               )}
             >
@@ -178,7 +198,8 @@ export function ChartDataEditor({ el }) {
       </Section>
 
       <Section label="Data">
-        <div className="overflow-x-auto rounded-md border">
+        <p className="text-label text-faint">Paste cells from a spreadsheet to replace the data.</p>
+        <div className="overflow-x-auto rounded-md border" onPaste={onPaste}>
           <table className="w-full min-w-max table-fixed border-collapse">
             <colgroup>
               <col style={{ width: 116 }} />
@@ -290,6 +311,11 @@ export function ChartDataEditor({ el }) {
           </table>
         </div>
 
+        {pasteNote && (
+          <p role="status" className="text-label text-muted-foreground">
+            {pasteNote}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 pt-1">
           <Button
             size="xs"

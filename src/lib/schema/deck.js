@@ -40,12 +40,16 @@ export const SlideSchema = z
     message: 'element map keys must match element ids',
   });
 
+export const TRANSITIONS = /** @type {const} */ (['none', 'fade', 'push']);
+
 export const DeckSchema = z
   .object({
     id: z.string().min(1),
     title: z.string().max(200),
     aspectRatio: z.literal('16:9'),
     theme: z.string().default('paper'),
+    /** Present-mode slide transition (D48). Not written to .pptx (pptxgenjs has no transitions). */
+    transition: z.enum(TRANSITIONS).default('fade'),
     slideOrder: z.array(z.string()),
     slides: z.record(z.string(), SlideSchema),
     updatedAt: z.number().optional(),
@@ -58,6 +62,6 @@ export const DeckSchema = z
  * @typedef {'title'|'content'|'two-column'|'comparison'|'section'|'chart-focus'|'blank'} Layout
  * @typedef {{ id: string, title: string, layout: Layout, background: { color: string, imageSrc?: string },
  *   notes: string, elementOrder: string[], elements: Record<string, import('./elements.js').Element> }} Slide
- * @typedef {{ id: string, title: string, aspectRatio: '16:9', theme: string, slideOrder: string[],
+ * @typedef {{ id: string, title: string, aspectRatio: '16:9', theme: string, transition?: 'none'|'fade'|'push', slideOrder: string[],
  *   slides: Record<string, Slide>, updatedAt?: number }} Deck
  */

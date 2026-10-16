@@ -12,11 +12,20 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { legendAvailable } from '@/lib/chart.js';
+import { legendAvailable, valueDomain, visibleSeries } from '@/lib/chart.js';
 import { resolveColor, seriesColor } from '@/lib/theme/index.js';
 
 const TITLE_H = 48; // title line
 const LEGEND_H = 40; // legend line, under the title (own row, so a long legend never hides the title)
+const LABEL_FONT = 22;
+
+// Axis ticks stay short on big axes (4K, 8K, 12K: one format for the whole axis, chosen by its
+// range); data labels show the exact value with digit grouping (12,000).
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+const exact = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
+const tickFormatFor = ([lo, hi]) =>
+  Math.max(Math.abs(lo), Math.abs(hi)) >= 10000 ? (v) => compact.format(v) : (v) => exact.format(v);
+const labelText = (v) => (v == null ? '' : exact.format(v));
 
 /**
  * A real Recharts chart (not an image). Explicit width/height = bbox, no ResponsiveContainer
@@ -31,13 +40,19 @@ export function ChartEl({ el, theme }) {
   const muted = resolveColor('muted', theme);
   const line = resolveColor('border', theme);
   const surface = resolveColor('bg', theme);
-  const font = { fontFamily: theme.fonts.body, fontSize: 22, fill: muted };
+  const font = { fontFamily: theme.fonts.body, fontSize: LABEL_FONT, fill: muted };
+  // Empty series (all zero / missing) aren't drawn or listed: they only add a blank legend entry
+  // and a row of "0" labels. They stay in the data for the editor (D51).
+  const series = visibleSeries(chart);
   // Legend as plain HTML in the header row: never collides with the axis, always in series order
   // (color follows the entity, never alphabetical), text in ink colors.
   const legendItems =
     chart.kind === 'pie'
       ? chart.categories.map((name, i) => ({ name, color: theme.chart[i % theme.chart.length] }))
-      : chart.series.map((s, i) => ({ name: s.name, color: seriesColor(s, i, theme) }));
+      : series.map((s) => ({
+          name: s.name,
+          color: seriesColor(s, chart.series.indexOf(s), theme),
+        }));
   const showLegend = chart.showLegend !== false && legendAvailable(chart);
   const titleH = (chart.title ? TITLE_H : 0) + (showLegend ? LEGEND_H : 0);
   const w = bbox.w;
@@ -47,7 +62,7 @@ export function ChartEl({ el, theme }) {
   if (chart.kind === 'pie') {
     // Pie uses the first series; one color per category, fixed order. Colors go in the data
     // (`fill` per entry) because Recharts 3 deprecates <Cell>.
-    const s = chart.series[0];
+    const s = series[0];
     const data = chart.categories.map((name, i) => ({
       name,
       value: s?.values[i] ?? 0,
@@ -72,7 +87,7 @@ export function ChartEl({ el, theme }) {
   } else {
     const rows = chart.categories.map((name, i) => {
       const row = { name };
-      chart.series.forEach((s) => {
+      series.forEach((s) => {
         row[s.name] = s.values[i] ?? 0;
       });
       return row;
@@ -84,12 +99,16 @@ export function ChartEl({ el, theme }) {
       line: [LineChart, Line],
       area: [AreaChart, Area],
     }[chart.kind];
+    const pointMarks = chart.kind === 'line' || chart.kind === 'area';
+    const domain = valueDomain(chart);
     body = (
       <Chart
         width={w}
         height={h}
         data={rows}
-        margin={{ top: 16, right: 24, left: 8, bottom: 8 }}
+        // Top margin fits a value label above the top gridline; the axis range adds headroom
+        // above the largest value, so labels never run into the legend or the top tick.
+        margin={{ top: chart.showDataLabels ? LABEL_FONT + 16 : 20, right: 24, left: 8, bottom: 8 }}
         barGap={8}
       >
         <CartesianGrid stroke={line} strokeWidth={2} vertical={false} />
@@ -97,6 +116,10 @@ export function ChartEl({ el, theme }) {
           dataKey="name"
           tick={font}
           tickLine={false}
+          interval={0}
+          // Lines and areas start a step in from the axis, so the first point and its label
+          // don't sit on the value axis and its top tick.
+          padding={pointMarks ? { left: 40, right: 40 } : undefined}
           axisLine={{ stroke: line, strokeWidth: 2 }}
           label={
             chart.xAxisLabel
@@ -108,16 +131,19 @@ export function ChartEl({ el, theme }) {
           tick={font}
           tickLine={false}
           axisLine={false}
-          width={72}
+          width={80}
+          domain={domain}
+          tickCount={5}
+          tickFormatter={tickFormatFor(domain)}
           label={
             chart.yAxisLabel
               ? { value: chart.yAxisLabel, angle: -90, position: 'insideLeft', ...font }
               : undefined
           }
         />
-        {chart.series.map((s, i) => {
-          const color = seriesColor(s, i, theme);
-          const isTop = !stacked || i === chart.series.length - 1;
+        {series.map((s, i) => {
+          const color = seriesColor(s, chart.series.indexOf(s), theme);
+          const isTop = !stacked || i === series.length - 1;
           return (
             <Mark
               key={`${s.name}-${i}`}
@@ -138,7 +164,15 @@ export function ChartEl({ el, theme }) {
               type={chart.kind === 'bar' || stacked ? undefined : 'monotone'}
             >
               {chart.showDataLabels && (
-                <LabelList dataKey={s.name} position="top" {...font} fill={ink} />
+                <LabelList
+                  dataKey={s.name}
+                  // Stacked segments label inside; bars and points label above, clear of the mark.
+                  position={stacked ? 'center' : 'top'}
+                  offset={pointMarks ? 16 : 10}
+                  formatter={labelText}
+                  {...font}
+                  fill={stacked ? resolveColor('onAccent', theme) : ink}
+                />
               )}
             </Mark>
           );

@@ -7,7 +7,7 @@ export function InsertBetween({ afterSlideId }) {
   const { addBlankSlide } = useDeckActions();
   return (
     <div className="group flex h-12 items-center justify-center">
-      <div className="flex items-center gap-2 opacity-0 transition-opacity duration-120 group-hover:opacity-100 focus-within:opacity-100">
+      <div className="flex items-center gap-2 opacity-0 transition-opacity duration-fast group-hover:opacity-100 focus-within:opacity-100">
         <span className="h-px w-24 bg-border" />
         <IconButtonTip
           icon={Plus}

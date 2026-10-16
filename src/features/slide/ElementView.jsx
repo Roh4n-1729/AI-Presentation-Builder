@@ -5,6 +5,7 @@ import { ShapeEl } from './elements/ShapeEl.jsx';
 import { TableEl } from './elements/TableEl.jsx';
 import { TextEl } from './elements/TextEl.jsx';
 import { useSlideInteraction } from './interaction.js';
+import { TABLE_MIN_ROW_UNITS } from '@/lib/tabular.js';
 
 const RENDERERS = { text: TextEl, chart: ChartEl, table: TableEl, image: ImageEl, shape: ShapeEl };
 
@@ -28,6 +29,9 @@ export const ElementView = memo(function ElementView({ el, theme, editing }) {
         top: y,
         width: w,
         height: h,
+        // A table can't be squashed below one line of its smallest text per row (D56); Moveable
+        // honours min-height while resizing.
+        minHeight: el.type === 'table' ? el.rows.length * TABLE_MIN_ROW_UNITS : undefined,
         transform: rotation ? `rotate(${rotation}deg)` : undefined,
         cursor: ix ? (editing ? 'text' : 'move') : 'default',
       }}

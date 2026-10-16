@@ -7,8 +7,10 @@ import {
   addBlankSlide,
   deleteSelection,
   duplicateSelection,
+  groupSelection,
   insertElement,
   moveSlideToIndex,
+  ungroupSelection,
 } from './actions.js';
 import { createAppStore } from './index.js';
 
@@ -161,5 +163,94 @@ describe('insertElement (Insert menu)', () => {
     const newSlide = after.slideOrder[2];
     expect(after.slides[newSlide].elements[id].type).toBe('chart');
     expect(after.slides[second]).toEqual(deck.slides[second]);
+  });
+});
+
+describe('side panel width', () => {
+  it('clamps to the allowed range and rounds', () => {
+    const store = createAppStore(makeDeck());
+    store.getState().setSideWidth(100);
+    expect(store.getState().sideWidth).toBe(320);
+    store.getState().setSideWidth(5000);
+    expect(store.getState().sideWidth).toBe(760);
+    store.getState().setSideWidth(480.6);
+    expect(store.getState().sideWidth).toBe(481);
+  });
+});
+
+describe('AI change tracking for canvas motion (D48)', () => {
+  it('records moved elements and removed ones per slide', () => {
+    const store = createAppStore(makeDeck());
+    const ai = { source: 'ai', turnId: 't1', label: 'AI' };
+    store
+      .getState()
+      .dispatch({ type: 'update_element', elementId: 'el_title', patch: { bbox: { x: 200 } } }, ai);
+    expect(store.getState().aiFlash.s_aaaaa).toMatchObject({
+      elementIds: ['el_title'],
+      removedIds: [],
+    });
+    store.getState().dispatch({ type: 'delete_element', elementId: 'el_title' }, ai);
+    expect(store.getState().aiFlash.s_aaaaa).toMatchObject({
+      elementIds: [],
+      removedIds: ['el_title'],
+    });
+  });
+
+  it('user edits never animate as AI changes', () => {
+    const store = createAppStore(makeDeck());
+    store.getState().dispatch({ type: 'delete_element', elementId: 'el_title' }, { label: 'Del' });
+    expect(store.getState().aiFlash).toEqual({});
+  });
+});
+
+describe('slide transition and speaker notes (D48)', () => {
+  it('sets the deck transition and notes as undoable ops; rejects unknown transitions', () => {
+    const store = createAppStore(makeDeck());
+    const s = () => store.getState();
+    expect(s().dispatch({ type: 'update_deck', patch: { transition: 'push' } }).ok).toBe(true);
+    expect(s().deck.transition).toBe('push');
+    expect(s().dispatch({ type: 'update_deck', patch: { transition: 'spin' } }).ok).toBe(false);
+    s().dispatch(
+      { type: 'update_slide', slideId: 's_bbbbb', patch: { notes: 'Lead with the 31%' } },
+      { label: 'Edit speaker notes' },
+    );
+    expect(s().deck.slides.s_bbbbb.notes).toBe('Lead with the 31%');
+    s().undo();
+    expect(s().deck.slides.s_bbbbb.notes).toBe('');
+  });
+});
+
+describe('groups (D53)', () => {
+  it('group, select a member → whole group, duplicate makes a new group, ungroup', () => {
+    const store = createAppStore(makeDeck());
+    const s = () => store.getState();
+    const [a, b] = s().deck.slides.s_bbbbb.elementOrder;
+    s().setSelection([a, b]);
+    expect(groupSelection(store).ok).toBe(true);
+    const gid = s().deck.slides.s_bbbbb.elements[a].groupId;
+    expect(gid).toMatch(/^g_/);
+    s().select(null);
+    s().select(b);
+    expect(s().selection).toEqual([a, b]);
+    duplicateSelection(store);
+    const copies = s().selection;
+    expect(copies).toHaveLength(2);
+    const copyGroup = s().deck.slides.s_bbbbb.elements[copies[0]].groupId;
+    expect(copyGroup).toBeTruthy();
+    expect(copyGroup).not.toBe(gid);
+    s().setSelection([a, b]);
+    ungroupSelection(store);
+    expect(s().deck.slides.s_bbbbb.elements[a].groupId).toBeUndefined();
+    s().undo();
+    expect(s().deck.slides.s_bbbbb.elements[a].groupId).toBe(gid);
+  });
+
+  it('a locked element can join a group (grouping does not move it)', () => {
+    const store = createAppStore(makeDeck());
+    const s = () => store.getState();
+    const [a, b] = s().deck.slides.s_bbbbb.elementOrder;
+    s().dispatch({ type: 'update_element', elementId: a, patch: { locked: true } });
+    s().setSelection([a, b]);
+    expect(groupSelection(store).ok).toBe(true);
   });
 });

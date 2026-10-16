@@ -1,29 +1,15 @@
 import { Download, FileJson, FileText, Loader2, Presentation } from 'lucide-react';
 import { useDeck } from '@/hooks/useDeck.js';
 import { useExport } from '@/hooks/useExport.js';
+import { MenuItem } from '@/primitives/MenuItem.jsx';
 import { Button } from '@/primitives/ui/button.jsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/primitives/ui/dropdown-menu.jsx';
-
-function Item({ icon: Icon, label, hint, shortcut, onSelect }) {
-  return (
-    <DropdownMenuItem onSelect={onSelect} className="items-start">
-      <Icon strokeWidth={1.5} className="mt-0.5" />
-      <span className="flex flex-col">
-        {label}
-        {hint && <span className="text-label text-muted-foreground">{hint}</span>}
-      </span>
-      {shortcut && <DropdownMenuShortcut>{shortcut}</DropdownMenuShortcut>}
-    </DropdownMenuItem>
-  );
-}
 
 /** Export ▾: PowerPoint (native charts and tables), PDF via the print view, deck file. */
 export function ExportMenu() {
@@ -42,28 +28,28 @@ export function ExportMenu() {
           {busy ? 'Exporting…' : 'Export'}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="text-label text-muted-foreground">
           Download as
         </DropdownMenuLabel>
-        <Item
+        <MenuItem
           icon={Presentation}
           label="PowerPoint (.pptx)"
-          hint="Editable text, charts and tables · Cambria / Arial"
+          title="Editable text, charts and tables (Cambria / Arial)"
           onSelect={pptx}
         />
-        <Item
+        <MenuItem
           icon={FileText}
           label="PDF"
-          hint="Print dialog → Save as PDF · exact fonts"
           shortcut="Ctrl P"
+          title="Opens the print dialog: choose Save as PDF"
           onSelect={pdf}
         />
         <DropdownMenuSeparator />
-        <Item
+        <MenuItem
           icon={FileJson}
           label="Deck file (.json)"
-          hint="Backup, or open in another browser"
+          title="Backup, or open in another browser"
           onSelect={json}
         />
       </DropdownMenuContent>

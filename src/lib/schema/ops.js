@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BBoxSchema, ELEMENT_ID, ElementSchema } from './elements.js';
-import { LAYOUTS, SLIDE_ID, SlideSchema } from './deck.js';
+import { LAYOUTS, SLIDE_ID, SlideSchema, TRANSITIONS } from './deck.js';
 
 /*
  * The op language (D1, D24). Every deck change is one of these. Ops are id-anchored (positions
@@ -16,7 +16,11 @@ const afterSlideId = slideId.nullable().optional();
 export const OpSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('update_deck'),
-    patch: z.object({ title: z.string().max(200).optional(), theme: z.string().optional() }),
+    patch: z.object({
+      title: z.string().max(200).optional(),
+      theme: z.string().optional(),
+      transition: z.enum(TRANSITIONS).optional(),
+    }),
   }),
   z.object({ type: z.literal('add_slide'), slide: SlideSchema, afterSlideId }),
   z.object({

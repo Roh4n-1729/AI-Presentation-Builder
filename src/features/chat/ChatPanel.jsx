@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eraser, Sparkles } from 'lucide-react';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { IconButtonTip } from '@/primitives/IconButtonTip.jsx';
+import { ExpandPanelButton, SidePanel } from '@/features/sidepanel/SidePanel.jsx';
 import { Composer } from './Composer.jsx';
 import { EmptyChat } from './EmptyChat.jsx';
 import { MessageList } from './MessageList.jsx';
@@ -20,21 +21,22 @@ export function ChatPanel() {
   const mode = deckEmpty ? 'generate' : 'edit';
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l bg-panel" aria-label="AI chat">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-4 text-ui font-medium">
-        <Sparkles className="size-4 text-ai" strokeWidth={1.5} /> AI
+    <SidePanel aria-label="AI chat">
+      <div className="flex h-11 shrink-0 items-center gap-1 border-b pr-2 pl-4 text-ui font-medium">
+        <Sparkles className="mr-1 size-4 text-ai" strokeWidth={1.5} /> AI
+        <span className="ml-auto" />
         {hasMessages && (
           <IconButtonTip
             icon={Eraser}
             label="Clear chat"
-            className="ml-auto"
             disabled={aiBusy}
             onClick={() => getDeckState().clearChat()}
           />
         )}
+        <ExpandPanelButton />
       </div>
       {hasMessages ? <MessageList /> : <EmptyChat deckEmpty={deckEmpty} onExample={setDraft} />}
       <Composer draft={draft} setDraft={setDraft} mode={mode} />
-    </aside>
+    </SidePanel>
   );
 }

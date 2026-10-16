@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { COLOR_ROLES, getTheme, resolveColor, seriesColor, THEMES } from './index.js';
+import {
+  COLOR_ROLES,
+  getTheme,
+  PICKABLE_THEMES,
+  resolveColor,
+  seriesColor,
+  THEMES,
+} from './index.js';
 
 const theme = getTheme('paper');
 
@@ -7,6 +14,18 @@ describe('getTheme', () => {
   it('falls back to the default theme for unknown ids', () => {
     expect(getTheme('nope')).toBe(THEMES.paper);
     expect(getTheme(undefined)).toBe(THEMES.paper);
+  });
+
+  it('maps the retired Sand id to Sage (decks saved before D46 keep a light green theme)', () => {
+    expect(getTheme('sand').id).toBe('sage');
+    expect(getTheme('sand', 'dark').id).toBe('moss');
+  });
+
+  it('pickable themes look different in both modes (no two share a background)', () => {
+    for (const scheme of ['light', 'dark']) {
+      const bgs = PICKABLE_THEMES().map((t) => getTheme(t.id, scheme).colors.bg);
+      expect(new Set(bgs).size).toBe(bgs.length);
+    }
   });
 
   it('every theme defines every color role', () => {

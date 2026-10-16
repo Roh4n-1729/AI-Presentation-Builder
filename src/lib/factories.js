@@ -18,10 +18,12 @@ export function createSlide({ id, title = 'Untitled slide', layout = 'blank', no
 /**
  * Starter content for elements inserted by hand (Insert menu). No id or box: the caller mints the
  * id and places it (placeElement), as for AI-added elements.
- * @param {'text'|'bullets'|'chart-bar'|'chart-line'|'chart-pie'|'table'|'rect'|'ellipse'|'line'|'arrow'} kind
+ * @param {'title'|'text'|'bullets'|'chart-bar'|'chart-line'|'chart-pie'|'table'|'rect'|'ellipse'|'line'|'arrow'} kind
  */
 export function starterElement(kind) {
   switch (kind) {
+    case 'title':
+      return { type: 'text', role: 'title', paragraphs: [{ text: 'Slide title' }], style: {} };
     case 'text':
       return {
         type: 'text',

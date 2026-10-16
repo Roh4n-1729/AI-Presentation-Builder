@@ -1,5 +1,8 @@
+import { currentDescription } from '../imageInfo.js';
+
 /**
- * Request contract (D13, §8b.5): never send image bytes to /api. Each image `src` becomes a short
+ * Request contract (D13, §8b.5): never send image bytes with chat requests (the one exception is
+ * /api/describe, which gets one small copy per picture, D58). Each image `src` becomes a short
  * reference (`img:<elementId>`); the server never needs pixels, and ops that copy images (duplicate,
  * move with newId) copy from the client's own deck, so nothing is lost. Keeps requests far below
  * Vercel's 4.5 MB body limit and token counts low.
@@ -13,7 +16,16 @@ export function toRequestDeck(deck) {
     const elements = {};
     for (const id of s.elementOrder) {
       const el = s.elements[id];
-      elements[id] = el.type === 'image' && el.src ? { ...el, src: `img:${id}` } : el;
+      if (el.type === 'image' && el.src) {
+        // The description travels as text; a stale one (picture replaced since) is dropped (D58).
+        const { description, ...rest } = el;
+        const text = currentDescription(el);
+        elements[id] = {
+          ...rest,
+          src: `img:${id}`,
+          ...(text ? { description: { text, of: description.of } } : {}),
+        };
+      } else elements[id] = el;
     }
     const background = s.background?.imageSrc
       ? { ...s.background, imageSrc: `img:${sid}` }

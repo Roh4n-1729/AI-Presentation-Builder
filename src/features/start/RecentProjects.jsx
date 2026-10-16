@@ -1,7 +1,9 @@
 import { Trash2 } from 'lucide-react';
+import { Link } from 'react-router';
 import { useDeck } from '@/hooks/useDeck.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
+import { deckPath } from '@/lib/routes.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { IconButtonTip } from '@/primitives/IconButtonTip.jsx';
 import { SlideRenderer } from '@/features/slide/SlideRenderer.jsx';
@@ -44,7 +46,7 @@ function Cover({ slide, theme }) {
 export function RecentProjects() {
   const projects = useDeck((s) => s.recentProjects);
   const scheme = useDeck((s) => s.colorScheme);
-  const { openProject, deleteProject } = useWorkspace();
+  const { deleteProject } = useWorkspace();
   if (!projects.length) return null;
 
   return (
@@ -58,18 +60,18 @@ export function RecentProjects() {
       <ul className="flex flex-wrap gap-4">
         {projects.map((p) => (
           <li key={p.id} className="group relative">
-            <button
-              type="button"
-              onClick={() => openProject(p.id)}
+            {/* A real link (D49, D59): middle-click / Ctrl-click opens the deck in a new tab. */}
+            <Link
+              to={deckPath(p.id)}
               aria-label={`Open ${p.title}`}
-              className="block rounded-lg p-1.5 text-left transition-colors duration-120 hover:bg-subtle focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="block rounded-lg p-1.5 text-left transition-colors duration-fast hover:bg-subtle focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               <Cover slide={p.cover} theme={getTheme(p.theme, scheme)} />
               <p className="mt-2 w-[208px] truncate text-ui font-medium">{p.title}</p>
               <p className="text-label text-muted-foreground">
                 {p.slideCount} slide{p.slideCount === 1 ? '' : 's'} · {timeAgo(p.updatedAt)}
               </p>
-            </button>
+            </Link>
             <IconButtonTip
               icon={Trash2}
               label="Delete presentation"

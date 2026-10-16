@@ -36,7 +36,7 @@ export function EmptyChat({ deckEmpty, onExample }) {
             key={t}
             type="button"
             onClick={() => onExample(t)}
-            className="rounded-lg border bg-panel px-3 py-2 text-left text-ui transition-colors duration-120 hover:border-ai/40 hover:bg-ai-soft"
+            className="rounded-lg border bg-panel px-3 py-2 text-left text-ui transition-colors duration-fast hover:border-ai/40 hover:bg-ai-soft"
           >
             {t}
           </button>

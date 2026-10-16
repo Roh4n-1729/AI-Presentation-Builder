@@ -63,3 +63,12 @@ export function providerChain() {
       providerOptions: PROVIDERS[id].providerOptions,
     }));
 }
+
+/**
+ * The model that describes images (D58): Gemini, the configured provider that reads images
+ * (sarvam-105b and gpt-oss on Groq are text-only). null when its key isn't set.
+ */
+export function visionModel() {
+  if (!process.env[PROVIDERS.gemini.key]) return null;
+  return { id: 'gemini', modelId: PROVIDERS.gemini.model(), model: PROVIDERS.gemini.make() };
+}

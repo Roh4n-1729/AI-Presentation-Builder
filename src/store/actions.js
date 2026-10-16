@@ -1,7 +1,14 @@
-import { elementId as newElementId, slideId as newSlideId } from '../lib/ids.js';
+import {
+  groupId as newGroupId,
+  elementId as newElementId,
+  slideId as newSlideId,
+} from '../lib/ids.js';
+import { groupState, remapGroups } from '../lib/groups.js';
 import { findElement } from '../lib/ops/index.js';
 import { createSlide } from '../lib/factories.js';
 import { overlaps, placeElement } from '../lib/layout/index.js';
+import { ARTBOARD_H, SAFE_MARGIN } from '../lib/constants.js';
+import { tableBoxAt } from '../lib/tabular.js';
 
 /*
  * Composite user actions: turn an intent into fully-resolved ops (fresh ids, concrete boxes),
@@ -22,18 +29,53 @@ export function deleteSelection(store) {
 export function duplicateSelection(store) {
   const { selection, deck, dispatch, setSelection } = store.getState();
   if (!selection.length) return null;
-  const ops = selection.map((id) => {
-    const { el } = findElement(deck, id);
-    return {
+  const els = selection.map((id) => findElement(deck, id).el);
+  // Copies of grouped elements form their own new group, never join the original (D53).
+  const groups = remapGroups(els, newGroupId);
+  const ops = [];
+  const newIds = [];
+  for (const el of els) {
+    const newId = newElementId();
+    newIds.push(newId);
+    ops.push({
       type: 'move_element',
-      elementId: id,
-      newId: newElementId(),
+      elementId: el.id,
+      newId,
       bbox: { ...el.bbox, x: el.bbox.x + 40, y: el.bbox.y + 40 },
-    };
-  });
+    });
+    if (el.groupId)
+      ops.push({
+        type: 'update_element',
+        elementId: newId,
+        patch: { groupId: groups[el.groupId] },
+      });
+  }
   const res = dispatch(ops, { label: 'Duplicate' });
-  if (res.ok) setSelection(ops.map((o) => o.newId));
+  if (res.ok) setSelection(newIds);
   return res;
+}
+
+/** Group the selection (2+ elements on one slide) under a new group id. One undo step. */
+export function groupSelection(store) {
+  const { selection, deck, dispatch } = store.getState();
+  const hit = selection.length ? findElement(deck, selection[0]) : null;
+  if (!hit || !groupState(hit.slide, selection).canGroup) return null;
+  const groupId = newGroupId();
+  return dispatch(
+    selection.map((id) => ({ type: 'update_element', elementId: id, patch: { groupId } })),
+    { label: 'Group' },
+  );
+}
+
+/** Take every selected element out of its group. The selection stays as it was. */
+export function ungroupSelection(store) {
+  const { selection, deck, dispatch } = store.getState();
+  const grouped = selection.filter((id) => findElement(deck, id)?.el.groupId);
+  if (!grouped.length) return null;
+  return dispatch(
+    grouped.map((id) => ({ type: 'update_element', elementId: id, patch: { groupId: null } })),
+    { label: 'Ungroup' },
+  );
 }
 
 export function nudgeSelection(store, dx, dy) {
@@ -100,6 +142,13 @@ export function renameSlide(store, slideId, title) {
     .dispatch({ type: 'update_slide', slideId, patch: { title } }, { label: 'Rename slide' });
 }
 
+/** Speaker notes for one slide (canvas notes field). Undoable like any edit. */
+export function setSlideNotes(store, slideId, notes) {
+  return store
+    .getState()
+    .dispatch({ type: 'update_slide', slideId, patch: { notes } }, { label: 'Edit speaker notes' });
+}
+
 /**
  * Insert a new element on the active slide (Insert menu, image upload). Placed like AI-added
  * content: into a free layout slot, else the nearest free spot. Selected afterwards.
@@ -124,7 +173,12 @@ export function insertElement(store, partial, label = 'Insert') {
     slideId = newId;
     placed = placeElement(slide, { ...partial, bbox: undefined });
   }
-  const { bbox, slot } = placed;
+  const { slot } = placed;
+  // A new table starts one row height per row, not the whole slot (D56).
+  const bbox =
+    partial.type === 'table'
+      ? tableBoxAt(placed.bbox, partial.rows.length, ARTBOARD_H - SAFE_MARGIN)
+      : placed.bbox;
   ops.push({
     type: 'add_element',
     slideId,

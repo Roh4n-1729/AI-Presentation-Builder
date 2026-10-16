@@ -68,3 +68,27 @@ describe('PowerPoint export model (D44)', () => {
     expect(again.length).toBe(buf.length);
   });
 });
+
+describe('stock photo credits (D57)', () => {
+  it('adds a credit line per credited photo to the slide notes', () => {
+    const deck = createSampleDeck();
+    const sid = deck.slideOrder.find((id) =>
+      Object.values(deck.slides[id].elements).some((el) => el.type === 'image'),
+    );
+    const slide = deck.slides[sid];
+    const img = Object.values(slide.elements).find((el) => el.type === 'image');
+    img.src = 'data:image/jpeg;base64,AA';
+    img.credit = {
+      text: '"Planning" by Ann Lee (CC BY 4.0)',
+      url: 'https://commons.wikimedia.org/wiki/File:Planning.jpg',
+      license: 'CC BY 4.0',
+      source: 'wikimedia',
+    };
+    slide.notes = 'Say hello.';
+    const model = buildPptxModel(deck, theme);
+    const notes = model.find((s) => s.id === sid).notes;
+    expect(notes).toBe(
+      'Say hello.\n\nImage: "Planning" by Ann Lee (CC BY 4.0) https://commons.wikimedia.org/wiki/File:Planning.jpg',
+    );
+  });
+});

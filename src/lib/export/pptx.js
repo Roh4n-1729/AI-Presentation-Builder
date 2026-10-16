@@ -1,4 +1,5 @@
-import { legendAvailable } from '../chart.js';
+import { legendAvailable, valueDomain, visibleSeries } from '../chart.js';
+import { TABLE_ROW_UNITS } from '../tabular.js';
 import { ARTBOARD_W } from '../constants.js';
 import { resolveColor, seriesColor, textStyleFor } from '../theme/index.js';
 
@@ -102,11 +103,11 @@ export function chartCall(el, theme) {
   const muted = hex(resolveColor('muted', theme));
   const line = hex(resolveColor('border', theme));
   const pie = c.kind === 'pie';
-  const series = pie ? c.series.slice(0, 1) : c.series;
+  const series = visibleSeries(c); // empty series aren't drawn on the canvas either (D51)
   const data = series.map((s) => ({ name: s.name, labels: c.categories, values: s.values }));
   const colors = pie
     ? c.categories.map((_, i) => hex(theme.chart[i % theme.chart.length]))
-    : series.map((s, i) => hex(seriesColor(s, i, theme)));
+    : series.map((s) => hex(seriesColor(s, c.series.indexOf(s), theme)));
   const legend = c.showLegend !== false && legendAvailable(c);
   const font = EXPORT_FONTS.body;
   const options = {
@@ -144,6 +145,9 @@ export function chartCall(el, theme) {
       catAxisLineColor: line,
       valAxisLineShow: false,
       valGridLine: { color: line, size: 1 },
+      // Same range as the canvas: headroom above the largest value for its label.
+      valAxisMinVal: valueDomain(c)[0],
+      valAxisMaxVal: valueDomain(c)[1],
       catGridLine: { style: 'none' },
       ...(c.xAxisLabel
         ? {
@@ -182,6 +186,7 @@ export function chartCall(el, theme) {
 }
 
 /** Table element -> addTable(rows, options): native table, same fills, borders and padding. */
+
 export function tableCall(el, theme) {
   const c = (role) => hex(resolveColor(role, theme));
   const cols = el.rows[0]?.length ?? 1;
@@ -195,7 +200,10 @@ export function tableCall(el, theme) {
         fill: { color: fill },
         color: header ? c('onAccent') : c('text'),
         bold: header,
-        border: [border, border, border, border],
+        // Header seams in the header's own color, as on the canvas (D55).
+        border: header
+          ? Array(4).fill({ ...border, color: fill })
+          : [border, border, border, border],
       },
     }));
   });
@@ -206,11 +214,13 @@ export function tableCall(el, theme) {
       ...box(el.bbox),
       objectName: el.id,
       colW: Array(cols).fill(inch(el.bbox.w) / cols),
-      rowH: inch(el.bbox.h) / el.rows.length,
+      // Rows share the box's height, at least one line of text plus padding each, as on the
+      // canvas (D56); PowerPoint grows a row whose text wraps.
+      rowH: inch(Math.max(TABLE_ROW_UNITS, el.bbox.h / Math.max(1, el.rows.length))),
       fontFace: EXPORT_FONTS.body,
       fontSize: 14, // 28 units on the canvas
       valign: 'middle',
-      margin: [7, 10, 7, 10], // points: the canvas pads cells 14 x 20 units
+      margin: [6, 10, 6, 10], // points: the canvas pads cells 0.45em x 0.7em of 28 units
     },
   };
 }
@@ -328,10 +338,19 @@ export function buildPptxModel(deck, theme, { fitted = {}, images = {} } = {}) {
       id: sid,
       title: slide.title,
       background: hex(resolveColor(slide.background?.color, theme, 'bg')),
-      notes: slide.notes || '',
+      notes: notesWithCredits(slide),
       calls,
     };
   });
+}
+
+/** Speaker notes plus a credit line for each stock photo on the slide (D57). */
+function notesWithCredits(slide) {
+  const credits = slide.elementOrder
+    .map((id) => slide.elements[id])
+    .filter((el) => el.type === 'image' && el.src && el.credit)
+    .map((el) => `Image: ${el.credit.text}${el.credit.url ? ` ${el.credit.url}` : ''}`);
+  return [slide.notes || '', ...credits].filter(Boolean).join('\n\n');
 }
 
 /**

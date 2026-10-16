@@ -16,7 +16,7 @@ export function OpChips({ chips }) {
           disabled={!c.slideId}
           onClick={() => getDeckState().showInCanvas(c)}
           title={c.slideId ? 'Show in the slide' : undefined}
-          className="flex animate-in items-center gap-1.5 rounded-md border border-l-[3px] border-l-ai bg-panel py-1 pr-2 pl-1.5 text-label text-foreground transition-colors duration-120 fade-in-0 hover:bg-ai-soft disabled:cursor-default disabled:opacity-60"
+          className="flex animate-in items-center gap-1.5 rounded-md border border-l-[3px] border-l-ai bg-panel py-1 pr-2 pl-1.5 text-label text-foreground transition-colors duration-fast fade-in-0 hover:bg-ai-soft disabled:cursor-default disabled:opacity-60"
           style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}
         >
           {c.label}

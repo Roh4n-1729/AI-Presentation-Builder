@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   AlignCenter,
   AlignLeft,
@@ -10,16 +10,22 @@ import {
   ChartLine,
   ChartPie,
   Copy,
+  Crop,
+  Group,
   ImageUp,
+  Info,
   Lock,
   LockOpen,
   Minus,
   Plus,
   Table2,
   Trash2,
+  Ungroup,
 } from 'lucide-react';
 import { getDeckState, useDeck, useDeckActions } from '@/hooks/useDeck.js';
 import { useInsert } from '@/hooks/useInsert.js';
+import { ARTBOARD_W } from '@/lib/constants.js';
+import { groupState } from '@/lib/groups.js';
 import { resolveColor } from '@/lib/theme/index.js';
 import { cn } from '@/primitives/cn.js';
 import { IconButtonTip } from '@/primitives/IconButtonTip.jsx';
@@ -33,6 +39,9 @@ import {
 } from '@/primitives/ui/dropdown-menu.jsx';
 
 const BAR_H = 40;
+/** How far the bar may stick out past the slide's edge: the slide column's side padding is 64 px,
+ *  and the column clips anything beyond it (overflow-x: hidden). */
+const OVERHANG = 56;
 const SWATCHES = ['text', 'muted', 'accent', 'accent2', 'positive', 'negative'];
 const SWATCH_NAMES = {
   text: 'Text',
@@ -161,6 +170,11 @@ function ImageControls({ el }) {
         label="Replace image"
         onClick={() => fileRef.current?.click()}
       />
+      {el.src && (
+        <Button size="sm" variant="ghost" onClick={() => getDeckState().openDrawer(el.id)}>
+          <Crop strokeWidth={1.5} /> Crop
+        </Button>
+      )}
       <Button
         size="sm"
         variant="ghost"
@@ -170,6 +184,14 @@ function ImageControls({ el }) {
       >
         {el.fit === 'cover' ? 'Fill' : 'Fit'}
       </Button>
+      {el.src && el.credit && (
+        // Stock photo credit (D57): the licence asks for it; opens the photo's source page.
+        <IconButtonTip
+          icon={Info}
+          label={`${el.credit.text} · via ${el.credit.source === 'openverse' ? 'Openverse' : 'Wikimedia Commons'}`}
+          onClick={() => el.credit.url && window.open(el.credit.url, '_blank', 'noopener')}
+        />
+      )}
       <input
         ref={fileRef}
         type="file"
@@ -194,7 +216,24 @@ export function FloatingToolbar({ slide, scale, theme }) {
   const dragging = useDeck((s) => Boolean(s.draggingSlideId));
   const editingId = useDeck((s) => s.editingId);
   const aiBusy = useDeck((s) => s.aiBusy);
-  const { duplicateSelection, deleteSelection, reorderElement, patchElement } = useDeckActions();
+  const {
+    duplicateSelection,
+    deleteSelection,
+    reorderElement,
+    patchElement,
+    groupSelection,
+    ungroupSelection,
+  } = useDeckActions();
+  // The bar's width depends on the element type, so it's measured after render and the bar is
+  // shifted left when it would run past the right edge (it used to be cut off by the column).
+  // ResizeObserver reports before paint, so the bar never shows at the clipped position.
+  const [barW, setBarW] = useState(0);
+  const barRef = useCallback((node) => {
+    if (!node) return;
+    const ro = new ResizeObserver(() => setBarW(node.offsetWidth));
+    ro.observe(node);
+    return () => ro.disconnect(); // React 19 callback-ref cleanup
+  }, []);
 
   const els = selection.map((id) => slide.elements[id]).filter(Boolean);
   if (!els.length || dragging || editingId || els.length !== selection.length) return null;
@@ -205,17 +244,20 @@ export function FloatingToolbar({ slide, scale, theme }) {
   const above = minY * scale - BAR_H - 10;
   const top = above > -8 ? above : maxY * scale + 10; // flip below when there's no room above
   const single = els.length === 1 ? els[0] : null;
+  const frameW = ARTBOARD_W * scale;
+  const left = Math.max(-OVERHANG, Math.min(minX * scale, frameW + OVERHANG - barW));
 
   return (
     <div
+      ref={barRef}
       role="toolbar"
       aria-label="Element tools"
       onPointerDown={(e) => e.stopPropagation()}
       className={cn(
         'absolute z-30 flex h-10 items-center gap-0.5 rounded-[10px] border bg-panel px-1 shadow-float',
-        'animate-in duration-120 fade-in-0',
+        'animate-in duration-fast fade-in-0',
       )}
-      style={{ left: Math.max(0, minX * scale), top }}
+      style={{ left, top }}
     >
       {single?.type === 'text' && <TextControls el={single} theme={theme} />}
       {single?.type === 'chart' && <ChartControls el={single} />}
@@ -227,6 +269,24 @@ export function FloatingToolbar({ slide, scale, theme }) {
         </ToolbarGroup>
       )}
       {single?.type === 'image' && <ImageControls el={single} />}
+      {els.length > 1 && (
+        <ToolbarGroup>
+          {groupState(slide, selection).groupId ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={ungroupSelection}
+              title="Ungroup (Ctrl+Shift+G)"
+            >
+              <Ungroup strokeWidth={1.5} /> Ungroup
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={groupSelection} title="Group (Ctrl+G)">
+              <Group strokeWidth={1.5} /> Group
+            </Button>
+          )}
+        </ToolbarGroup>
+      )}
       {single?.type === 'shape' && (
         <ToolbarGroup>
           <ColorMenu

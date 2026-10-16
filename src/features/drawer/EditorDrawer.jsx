@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { ChartColumn, Table2, X } from 'lucide-react';
+import { ChartColumn, Crop, Table2, X } from 'lucide-react';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { findElement } from '@/lib/ops/index.js';
+import { ExpandPanelButton, SidePanel } from '@/features/sidepanel/SidePanel.jsx';
 import { IconButtonTip } from '@/primitives/IconButtonTip.jsx';
 import { ChartDataEditor } from './ChartDataEditor.jsx';
+import { ImageCropEditor } from './ImageCropEditor.jsx';
 import { TableEditor } from './TableEditor.jsx';
 
 /**
@@ -28,7 +30,16 @@ export function EditorDrawer() {
     if (!elementId || selection.includes(elementId)) return;
     const s = getDeckState();
     const only = selection.length === 1 ? findElement(s.deck, selection[0])?.el : null;
-    if (only && (only.type === 'chart' || only.type === 'table')) s.openDrawer(only.id);
+    // Charts and tables open their editor on selection; the crop editor stays open only while
+    // moving from one image to another (it's opened with the Crop button).
+    const wasImage = findElement(s.deck, elementId)?.el.type === 'image';
+    if (
+      only &&
+      (only.type === 'chart' ||
+        only.type === 'table' ||
+        (wasImage && only.type === 'image' && only.src))
+    )
+      s.openDrawer(only.id);
     else s.closeDrawer();
   }, [selection, elementId]);
 
@@ -50,9 +61,13 @@ export function EditorDrawer() {
   }, []);
 
   if (!el) return null;
-  const isChart = el.type === 'chart';
-  const Icon = isChart ? ChartColumn : Table2;
-  const title = isChart ? 'Chart' : 'Table';
+  const KIND = {
+    chart: { Icon: ChartColumn, title: 'Chart', Editor: ChartDataEditor },
+    table: { Icon: Table2, title: 'Table', Editor: TableEditor },
+    image: { Icon: Crop, title: 'Crop image', Editor: ImageCropEditor },
+  }[el.type];
+  if (!KIND) return null;
+  const { Icon, title, Editor } = KIND;
   const slideNo = (() => {
     const { deck } = getDeckState();
     const hit = findElement(deck, el.id);
@@ -60,27 +75,27 @@ export function EditorDrawer() {
   })();
 
   return (
-    <aside
+    <SidePanel
       ref={panelRef}
       key={el.id /* replays the entrance highlight when switching elements */}
-      className="drawer-enter flex w-[360px] shrink-0 flex-col border-l bg-panel"
-      aria-label={`${title} editor`}
+      className="drawer-enter"
+      aria-label={el.type === 'image' ? 'Crop editor' : `${title} editor`}
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b pr-2 pl-4 text-ui font-medium">
         <Icon className="size-4 text-user" strokeWidth={1.5} />
         {title}
         {slideNo && <span className="font-normal text-muted-foreground">· slide {slideNo}</span>}
+        <ExpandPanelButton className="ml-auto" />
         <IconButtonTip
           icon={X}
           label="Close"
           shortcut="Esc"
-          className="ml-auto"
           onClick={() => getDeckState().closeDrawer()}
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {isChart ? <ChartDataEditor el={el} /> : <TableEditor el={el} />}
+        <Editor el={el} />
       </div>
-    </aside>
+    </SidePanel>
   );
 }

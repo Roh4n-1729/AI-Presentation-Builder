@@ -112,7 +112,7 @@ export function Composer({ draft, setDraft, mode }) {
                 : 'Ask for a change…'
           }
           aria-label={mode === 'generate' ? 'Describe the new deck' : 'Ask the AI to edit the deck'}
-          className="max-h-40 min-h-6 flex-1 resize-none bg-transparent px-1 py-0.5 text-ui outline-none placeholder:text-faint"
+          className="max-h-40 min-h-8 flex-1 resize-none bg-transparent px-1.5 py-1.5 text-ui leading-5 outline-none placeholder:text-faint"
         />
         {aiBusy ? (
           <Button size="icon-sm" variant="secondary" aria-label="Stop" onClick={ai.stop}>

@@ -80,7 +80,7 @@ export function createSampleDeck() {
         id: 'el_price_table',
         type: 'table',
         slot: 'left',
-        bbox: { ...slotBox('two-column', 'left'), h: 420 },
+        bbox: { ...slotBox('two-column', 'left'), h: 256 }, // 4 rows × 64 (D56)
         headerRow: true,
         rows: [
           ['Plan', 'Price', 'Seats'],

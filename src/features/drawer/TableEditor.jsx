@@ -3,6 +3,8 @@ import { Plus, X } from 'lucide-react';
 import { useDeckActions } from '@/hooks/useDeck.js';
 import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
+import { ARTBOARD_H, SAFE_MARGIN } from '@/lib/constants.js';
+import { looksLikeGrid, parseGrid, pasteIntoRows, tableBoxFor } from '@/lib/tabular.js';
 import { CellInput } from './fields.jsx';
 
 const MAX_ROWS = 20;
@@ -19,18 +21,32 @@ export function TableEditor({ el }) {
   }
 
   const commit = (next = rows, label = 'Edit table') => {
-    if (JSON.stringify(next) !== JSON.stringify(el.rows))
-      patchElement(el.id, { rows: next }, label);
+    if (JSON.stringify(next) !== JSON.stringify(el.rows)) {
+      // The box follows the row count (one undo step with the edit), D56.
+      const bbox = tableBoxFor(el.bbox, el.rows.length, next.length, ARTBOARD_H - SAFE_MARGIN);
+      patchElement(el.id, bbox === el.bbox ? { rows: next } : { rows: next, bbox }, label);
+    }
   };
   const apply = (next, label) => {
     setRows(next);
     commit(next, label);
   };
   const cols = rows[0]?.length ?? 1;
+  // Paste a block of cells from a spreadsheet into the focused cell: fills right and down from
+  // there, adding rows and columns as needed (D53). A single value pastes normally.
+  const onPaste = (e) => {
+    const at = e.target.dataset?.cell;
+    const text = e.clipboardData.getData('text/plain');
+    if (!at || !looksLikeGrid(text)) return;
+    e.preventDefault();
+    const [r, c] = at.split(',').map(Number);
+    apply(pasteIntoRows(rows, parseGrid(text), r, c), 'Paste cells');
+  };
 
   return (
     <div className="space-y-4 text-ui">
-      <div className="overflow-x-auto rounded-md border">
+      <p className="text-label text-faint">Paste cells from a spreadsheet into any cell.</p>
+      <div className="overflow-x-auto rounded-md border" onPaste={onPaste}>
         <table className="w-full border-collapse">
           <tbody>
             {rows.map((row, r) => (
@@ -49,6 +65,7 @@ export function TableEditor({ el }) {
                       }
                       onCommit={() => commit()}
                       aria-label={`Row ${r + 1}, column ${c + 1}`}
+                      data-cell={`${r},${c}`}
                       title={cell}
                       data-first-cell={r === 0 && c === 0 ? '' : undefined}
                       className={r === 0 && el.headerRow ? 'font-medium' : undefined}

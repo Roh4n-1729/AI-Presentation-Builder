@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { getDeckState } from '@/hooks/useDeck.js';
+import { expandToGroups } from '@/lib/groups.js';
 
 const THRESHOLD = 4; // px of movement before a press on the background becomes a box select
 
@@ -56,7 +57,8 @@ export function useMarquee(frameRef, slideId, scale) {
       const hit = slide.elementOrder.filter(
         (id) => !slide.elements[id].locked && intersects(slide.elements[id].bbox, inUnits),
       );
-      const next = [...new Set([...base.filter((id) => slide.elements[id]), ...hit])];
+      // Touching one member of a group takes the whole group (D53).
+      const next = expandToGroups(slide, [...base.filter((id) => slide.elements[id]), ...hit]);
       if (next.join() !== s.selection.join()) s.setSelection(next);
     };
     const onUp = () => {

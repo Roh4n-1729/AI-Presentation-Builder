@@ -43,7 +43,7 @@ export const AssistantMessage = memo(function AssistantMessage({ msg, isLast }) 
             <div className="mt-2.5">
               <div className="h-1 overflow-hidden rounded-full bg-border">
                 <div
-                  className="h-full rounded-full bg-ai transition-[width] duration-240 ease-standard"
+                  className="h-full rounded-full bg-ai transition-[width] duration-move ease-standard"
                   style={{ width: `${(msg.progress.done / msg.progress.total) * 100}%` }}
                 />
               </div>
@@ -147,7 +147,7 @@ export const AssistantMessage = memo(function AssistantMessage({ msg, isLast }) 
               type="button"
               disabled={aiBusy}
               onClick={() => ai.runEdit(s)}
-              className="rounded-full border bg-panel px-3 py-1 text-left text-label transition-colors duration-120 hover:border-ai/40 hover:bg-ai-soft disabled:opacity-50"
+              className="rounded-full border bg-panel px-3 py-1 text-left text-label transition-colors duration-fast hover:border-ai/40 hover:bg-ai-soft disabled:opacity-50"
             >
               {s}
             </button>

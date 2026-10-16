@@ -1,4 +1,8 @@
+import { SIDE_WIDTH } from '../lib/constants.js';
+import { expandToGroups } from '../lib/groups.js';
 import { findElement } from '../lib/ops/index.js';
+
+const clampSide = (w) => Math.round(Math.max(SIDE_WIDTH.min, Math.min(SIDE_WIDTH.max, w)));
 
 /** Editor UI state: not part of the deck, not in history. */
 export const createUiSlice = (initialDeck) => (set) => ({
@@ -15,6 +19,8 @@ export const createUiSlice = (initialDeck) => (set) => ({
   colorScheme: globalThis.document?.documentElement.classList.contains('dark') ? 'dark' : 'light',
   /** side panels shown in the editor (per-browser preference, see useChromePrefs) */
   panels: { filmstrip: true, chat: true },
+  /** right-hand panel width (drag its left edge, or the expand button) */
+  sideWidth: SIDE_WIDTH.default,
   /** data editor drawer for a chart or table: { elementId } | null (opens over the AI panel) */
   drawer: null,
   /** print view mounted (renders every slide for the browser's print / Save as PDF) */
@@ -47,6 +53,11 @@ export const createUiSlice = (initialDeck) => (set) => ({
       const drawer = name === 'chat' && !next ? null : s.drawer;
       return { panels: { ...s.panels, [name]: next }, drawer };
     }),
+  setSideWidth: (w) =>
+    set((s) => {
+      const sideWidth = clampSide(w);
+      return s.sideWidth === sideWidth ? s : { sideWidth };
+    }),
   setScreen: (screen) => set((s) => (s.screen === screen ? s : { screen })),
   setRecentProjects: (recentProjects) => set({ recentProjects }),
   setSaveStatus: (saveStatus) => set((s) => (s.saveStatus === saveStatus ? s : { saveStatus })),
@@ -56,14 +67,27 @@ export const createUiSlice = (initialDeck) => (set) => ({
       // editingId is NOT cleared here: the editor's own blur commits and exits. Clearing it here
       // would unmount the editor before blur could save (spike gotcha 6).
       if (!id) return s.selection.length ? { selection: [] } : s;
-      if (!additive) return { selection: [id] };
-      // Additive selection stays within one slide, so a group never spans slides.
-      const slideOf = (eid) => findElement(s.deck, eid)?.slide.id;
-      const base = s.selection.filter((eid) => slideOf(eid) === slideOf(id));
-      return { selection: base.includes(id) ? base.filter((x) => x !== id) : [...base, id] };
+      const hit = findElement(s.deck, id);
+      if (!hit) return s;
+      // A grouped element brings its whole group (D53).
+      const unit = expandToGroups(hit.slide, [id]);
+      if (!additive) return { selection: unit };
+      // Additive selection stays within one slide, so a selection never spans slides.
+      const base = s.selection.filter((eid) => hit.slide.elements[eid]);
+      const on = unit.every((u) => base.includes(u));
+      return {
+        selection: on
+          ? base.filter((x) => !unit.includes(x))
+          : expandToGroups(hit.slide, [...base, ...unit]),
+      };
     });
   },
-  setSelection: (ids) => set({ selection: ids }),
+  /** Replace the selection (box select, paste, duplicate); groups are completed. */
+  setSelection: (ids) =>
+    set((s) => {
+      const hit = ids.length ? findElement(s.deck, ids[0]) : null;
+      return { selection: hit ? expandToGroups(hit.slide, ids) : ids };
+    }),
   setActiveSlide: (id) => set((s) => (s.activeSlideId === id ? s : { activeSlideId: id })),
   setEditing: (id) => set((s) => (s.editingId === id ? s : { editingId: id })),
   setDragging: (slideId) =>

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import {
+  Heading,
   ArrowRight,
   ChartColumn,
   ChartLine,
@@ -16,23 +17,15 @@ import {
 } from 'lucide-react';
 import { useDeck } from '@/hooks/useDeck.js';
 import { useInsert } from '@/hooks/useInsert.js';
+import { MenuItem } from '@/primitives/MenuItem.jsx';
 import { Button } from '@/primitives/ui/button.jsx';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/primitives/ui/dropdown-menu.jsx';
-
-function Item({ icon: Icon, label, onSelect }) {
-  return (
-    <DropdownMenuItem onSelect={onSelect}>
-      <Icon strokeWidth={1.5} /> {label}
-    </DropdownMenuItem>
-  );
-}
 
 /** Insert ▾: text, list, chart, table, image (upload or URL), shapes, on the active slide. */
 export function InsertMenu() {
@@ -50,21 +43,22 @@ export function InsertMenu() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52">
-          <Item icon={Type} label="Text box" onSelect={() => insert('text')} />
-          <Item icon={List} label="Bulleted list" onSelect={() => insert('bullets')} />
+          <MenuItem icon={Heading} label="Title" onSelect={() => insert('title')} />
+          <MenuItem icon={Type} label="Text box" onSelect={() => insert('text')} />
+          <MenuItem icon={List} label="Bulleted list" onSelect={() => insert('bullets')} />
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-label text-muted-foreground">Data</DropdownMenuLabel>
-          <Item icon={ChartColumn} label="Bar chart" onSelect={() => insert('chart-bar')} />
-          <Item icon={ChartLine} label="Line chart" onSelect={() => insert('chart-line')} />
-          <Item icon={ChartPie} label="Pie chart" onSelect={() => insert('chart-pie')} />
-          <Item icon={Table} label="Table" onSelect={() => insert('table')} />
+          <MenuItem icon={ChartColumn} label="Bar chart" onSelect={() => insert('chart-bar')} />
+          <MenuItem icon={ChartLine} label="Line chart" onSelect={() => insert('chart-line')} />
+          <MenuItem icon={ChartPie} label="Pie chart" onSelect={() => insert('chart-pie')} />
+          <MenuItem icon={Table} label="Table" onSelect={() => insert('table')} />
           <DropdownMenuSeparator />
-          <Item
+          <MenuItem
             icon={ImagePlus}
             label="Image from your computer…"
             onSelect={() => fileRef.current?.click()}
           />
-          <Item
+          <MenuItem
             icon={Link}
             label="Image from a URL…"
             onSelect={() => {
@@ -74,10 +68,10 @@ export function InsertMenu() {
           />
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-label text-muted-foreground">Shapes</DropdownMenuLabel>
-          <Item icon={Square} label="Rectangle" onSelect={() => insert('rect')} />
-          <Item icon={Circle} label="Ellipse" onSelect={() => insert('ellipse')} />
-          <Item icon={Minus} label="Line" onSelect={() => insert('line')} />
-          <Item icon={ArrowRight} label="Arrow" onSelect={() => insert('arrow')} />
+          <MenuItem icon={Square} label="Rectangle" onSelect={() => insert('rect')} />
+          <MenuItem icon={Circle} label="Ellipse" onSelect={() => insert('ellipse')} />
+          <MenuItem icon={Minus} label="Line" onSelect={() => insert('line')} />
+          <MenuItem icon={ArrowRight} label="Arrow" onSelect={() => insert('arrow')} />
         </DropdownMenuContent>
       </DropdownMenu>
       <input

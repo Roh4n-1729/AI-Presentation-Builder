@@ -1,5 +1,3 @@
-import 'fake-indexeddb/auto';
-import { createStore, set } from 'idb-keyval';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSampleDeck } from '../lib/sampleDeck.js';
 import { createAppStore } from '../store/index.js';
@@ -11,22 +9,28 @@ import {
   MAX_PROJECTS,
   sanitizeMessages,
   saveProject,
+  setCurrentProjectId,
+  setStorage,
   startAutosave,
 } from './persistence.js';
+import { createMemoryStore } from './kvStore.js';
+
+// Persistence logic runs against an in-memory key-value store (D52); the IndexedDB side is the
+// thin `idb` adapter in kvStore.js, checked in the browser.
+let storage;
+beforeEach(() => {
+  storage = createMemoryStore();
+  setStorage(storage);
+});
 
 const deckWithId = (id, title = id) => ({ ...createSampleDeck(), id, title });
-describe('projects in IndexedDB (fake-indexeddb)', () => {
-  beforeEach(async () => {
-    await saveProject({ deck: deckWithId('d_reset'), messages: [] });
-    for (const p of await listProjects()) await deleteProject(p.id);
-  });
-
+describe('projects', () => {
   it('round-trips a project and lists it with a cover', async () => {
     const deck = deckWithId('d_one', 'One');
     const messages = [{ id: 'm1', role: 'user', text: 'hi' }];
     await saveProject({ deck, messages });
     const loaded = await loadProject('d_one');
-    expect(loaded.deck).toEqual(deck);
+    expect(loaded.deck).toEqual({ ...deck, transition: 'fade' }); // schema default (D48)
     expect(loaded.messages).toEqual(messages);
     const [entry] = await listProjects();
     expect(entry).toMatchObject({ id: 'd_one', title: 'One', slideCount: deck.slideOrder.length });
@@ -41,6 +45,16 @@ describe('projects in IndexedDB (fake-indexeddb)', () => {
     const ids = (await listProjects()).map((p) => p.id);
     expect(ids).toEqual(['d_3', 'd_7', 'd_6', 'd_5', 'd_4']);
     expect(await loadProject('d_1')).toBeNull(); // evicted for real, not just unlisted
+  });
+
+  it('deletes a project: record, list entry and "currently open" marker', async () => {
+    await saveProject({ deck: deckWithId('d_keep'), messages: [] });
+    await saveProject({ deck: deckWithId('d_gone'), messages: [] });
+    await setCurrentProjectId('d_gone');
+    await deleteProject('d_gone');
+    expect((await listProjects()).map((p) => p.id)).toEqual(['d_keep']);
+    expect(await loadProject('d_gone')).toBeNull();
+    expect(await getCurrentProjectId()).toBeNull();
   });
 
   it('does not save an empty deck with no chat', async () => {
@@ -67,17 +81,9 @@ describe('projects in IndexedDB (fake-indexeddb)', () => {
 });
 
 describe('legacy single-workspace record (D39)', () => {
-  beforeEach(async () => {
-    for (const p of await listProjects()) await deleteProject(p.id);
-  });
-
   it('is migrated into the project list and opened', async () => {
     const deck = deckWithId('d_legacy', 'Old one');
-    await set(
-      'workspace',
-      { version: 1, deck, messages: [], savedAt: 1 },
-      createStore('ai-presentation-builder', 'kv'),
-    );
+    await storage.set('workspace', { version: 1, deck, messages: [], savedAt: 1 });
     expect((await listProjects()).map((p) => p.id)).toEqual(['d_legacy']);
     expect(await getCurrentProjectId()).toBe('d_legacy');
   });

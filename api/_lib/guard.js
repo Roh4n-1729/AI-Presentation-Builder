@@ -28,13 +28,13 @@ function rateLimited(request) {
  * Validate a POST body against a Zod schema.
  * @returns {Promise<{ body: any } | { response: Response }>}
  */
-export async function readRequest(request, schema) {
+export async function readRequest(request, schema, { maxBytes = MAX_REQUEST_BYTES } = {}) {
   const size = Number(request.headers.get('content-length') || 0);
-  if (size > MAX_REQUEST_BYTES) {
+  if (size > maxBytes) {
     return {
       response: json(413, {
         code: 'TOO_LARGE',
-        message: 'Request too large. Images must not be sent to the API.',
+        message: 'Request too large. Images must not be sent with chat requests.',
       }),
     };
   }

@@ -95,6 +95,60 @@
   color-scheme: dark;
 }
 
+/*
+ * Motion tokens (D48): the ONLY place durations and easings are defined. CSS reads the variables,
+ * Tailwind gets utilities from them (duration-fast/base/move/emphasis, ease-standard/enter/exit),
+ * and scripted animations (AI moves, slide transitions, drag drop) read them via hooks/motion.js.
+ * A test fails on any raw duration or cubic-bezier outside this block.
+ *
+ *   fast      hover, press, small fades, the floating toolbar appearing
+ *   base      open/close: menus, tooltips, panels, notes, present controls
+ *   move      something travels: AI moves/resizes, slide transitions, drag drop
+ *   emphasis  an entrance meant to draw the eye (data editor sliding in)
+ *   highlight a flash that marks a change (undo/redo, AI glow); highlight-ai lingers longer
+ */
+:root {
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-move: 280ms;
+  --motion-emphasis: 420ms;
+  --motion-highlight: 1100ms;
+  --motion-highlight-ai: 1600ms;
+  /* standard: most UI. enter: decelerate into place. exit: accelerate out of view. */
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-enter: cubic-bezier(0, 0, 0, 1);
+  --motion-ease-exit: cubic-bezier(0.3, 0, 1, 1);
+}
+
+@utility duration-fast {
+  --tw-duration: var(--motion-fast);
+  transition-duration: var(--motion-fast);
+}
+@utility duration-base {
+  --tw-duration: var(--motion-base);
+  transition-duration: var(--motion-base);
+}
+@utility duration-move {
+  --tw-duration: var(--motion-move);
+  transition-duration: var(--motion-move);
+}
+@utility duration-emphasis {
+  --tw-duration: var(--motion-emphasis);
+  transition-duration: var(--motion-emphasis);
+}
+
+/*
+ * Cursor tokens (D49, D50). Browsers can't recolor a system cursor, and Windows draws its resize
+ * arrow white (nearly invisible on the light panel). So this is the same plain double-headed
+ * resize arrow, drawn dark with a thin white outline; `ew-resize` is the fallback.
+ */
+:root {
+  --cursor-resize-x:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M2.5 12 8 6.75v3.5h8v-3.5L21.5 12 16 17.25v-3.5H8v3.5z' fill='%23111' stroke='%23fff' stroke-width='1.25' stroke-linejoin='round'/%3E%3C/svg%3E")
+      12 12,
+    ew-resize;
+}
+
 /* Expose tokens as Tailwind utilities: bg-panel, text-muted-foreground, border-border, bg-user… */
 @theme inline {
   --color-background: var(--background);
@@ -131,6 +185,10 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
+  --ease-standard: var(--motion-ease-standard);
+  --ease-enter: var(--motion-ease-enter);
+  --ease-exit: var(--motion-ease-exit);
+
   --shadow-float: var(--shadow-float);
   --shadow-pill: var(--shadow-pill);
   --shadow-pill-light: var(--shadow-pill-light);
@@ -151,9 +209,7 @@
   --text-display--line-height: 1.05;
   --text-display--letter-spacing: -0.02em;
 
-  /* motion: one easing, three durations (120 hover/press, 180 open/close, 240 AI move) */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --animate-ai-glow: ai-glow 900ms var(--ease-standard);
+  --animate-ai-glow: ai-glow var(--motion-highlight) var(--motion-ease-standard);
 
   @keyframes ai-glow {
     0% {
@@ -200,4 +256,53 @@
       transparent
     ),
     var(--background);
+}
+
+/* Dragging the side panel's edge (D46): keep the resize cursor everywhere, no text selection. */
+body.side-resizing,
+body.side-resizing * {
+  cursor: var(--cursor-resize-x) !important;
+  user-select: none !important;
+  transition: none !important; /* the panel follows the pointer, not the motion token */
+}
+
+/* Scrollbars in the app's colors (no arrow buttons, thin thumb on a clear track), light and dark.
+   Chromium/Safari use the ::-webkit pseudo-elements; Firefox (which lacks them) uses the standard
+   properties. Chromium ignores the pseudo-elements once scrollbar-color is set, hence the split. */
+:root {
+  --scrollbar-thumb: rgb(0 0 0 / 0.18);
+  --scrollbar-thumb-hover: rgb(0 0 0 / 0.32);
+}
+.dark {
+  --scrollbar-thumb: rgb(255 255 255 / 0.16);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 0.3);
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
 }

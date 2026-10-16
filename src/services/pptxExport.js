@@ -101,13 +101,16 @@ async function frameImage(el) {
   ctx.beginPath();
   ctx.roundRect(0, 0, cw, ch, RADIUS * k);
   ctx.clip();
-  const s =
-    el.fit === 'contain'
-      ? Math.min(cw / img.naturalWidth, ch / img.naturalHeight)
-      : Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
-  const dw = img.naturalWidth * s;
-  const dh = img.naturalHeight * s;
-  ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+  // The source region shown: the crop (D53), or the whole picture.
+  const c = el.crop ?? { x: 0, y: 0, w: 1, h: 1 };
+  const sx = c.x * img.naturalWidth;
+  const sy = c.y * img.naturalHeight;
+  const sw = c.w * img.naturalWidth;
+  const sh = c.h * img.naturalHeight;
+  const s = el.fit === 'contain' ? Math.min(cw / sw, ch / sh) : Math.max(cw / sw, ch / sh);
+  const dw = sw * s;
+  const dh = sh * s;
+  ctx.drawImage(img, sx, sy, sw, sh, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
   return canvas.toDataURL('image/png');
 }
 

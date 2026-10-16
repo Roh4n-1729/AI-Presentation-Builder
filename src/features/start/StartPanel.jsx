@@ -1,9 +1,16 @@
 import { useRef, useState } from 'react';
-import { ArrowUp, FilePlus2, FolderOpen, LayoutTemplate } from 'lucide-react';
+import { ArrowUp, ChevronDown, FilePlus2, FolderOpen, LayoutTemplate } from 'lucide-react';
 import { useAi } from '@/hooks/useAi.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/primitives/ui/dropdown-menu.jsx';
 import { RecentProjects } from './RecentProjects.jsx';
 
 const SLIDE_COUNTS = ['auto', 4, 5, 6, 7, 8, 10, 12];
@@ -80,20 +87,32 @@ export function StartPanel() {
             className="block max-h-72 min-h-24 w-full resize-y bg-transparent px-1.5 py-1 text-base outline-none placeholder:text-faint"
           />
           <div className="mt-2 flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-label text-muted-foreground">
-              Slides
-              <select
-                value={count}
-                onChange={(e) => setCount(e.target.value)}
-                className="rounded-sm border bg-panel px-1 py-0.5 text-label text-foreground"
-              >
-                {SLIDE_COUNTS.map((n) => (
-                  <option key={n} value={n}>
-                    {n === 'auto' ? 'Auto' : n}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/* Same dropdown primitive as the rest of the app (a native <select> can't be themed). */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  aria-label={`Slides: ${count === 'auto' ? 'Auto' : count}`}
+                  className="text-muted-foreground"
+                >
+                  Slides
+                  <span className="font-medium text-foreground tabular-nums">
+                    {count === 'auto' ? 'Auto' : count}
+                  </span>
+                  <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-32">
+                <DropdownMenuRadioGroup value={String(count)} onValueChange={setCount}>
+                  {SLIDE_COUNTS.map((n) => (
+                    <DropdownMenuRadioItem key={n} value={String(n)}>
+                      {n === 'auto' ? 'Auto' : `${n} slides`}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <span className="ml-auto text-label text-faint">Ctrl + Enter</span>
             <Button
               onClick={generate}
@@ -115,7 +134,7 @@ export function StartPanel() {
                 taRef.current?.focus();
               }}
               className={cn(
-                'rounded-full border bg-panel/80 px-3 py-1.5 text-ui transition-colors duration-120',
+                'rounded-full border bg-panel/80 px-3 py-1.5 text-ui transition-colors duration-fast',
                 'hover:border-ai/40 hover:bg-ai-soft',
               )}
             >

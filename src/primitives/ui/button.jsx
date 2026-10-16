@@ -4,7 +4,7 @@ import { Slot } from 'radix-ui';
 // shadcn button, restyled for §8c: primary actions are pills (dark + light, with a subtle inset
 // highlight), toolbar/icon buttons are 6px-rounded ghosts, `ai` is the saffron AI action.
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 text-ui font-medium whitespace-nowrap transition-[color,background-color,box-shadow,opacity] duration-120 ease-standard outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 items-center justify-center gap-2 text-ui font-medium whitespace-nowrap transition-[color,background-color,box-shadow,opacity] duration-fast ease-standard outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

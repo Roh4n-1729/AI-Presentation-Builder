@@ -13,7 +13,7 @@ export function DropRing({ label, className, compact = false }) {
       aria-hidden
       className={cn(
         'pointer-events-none absolute -inset-[5px] z-20 rounded-[13px] bg-user/8 ring-[3px] ring-user',
-        'animate-in duration-120 fade-in-0',
+        'animate-in duration-fast fade-in-0',
         className,
       )}
     >

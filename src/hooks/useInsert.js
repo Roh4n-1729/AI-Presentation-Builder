@@ -6,6 +6,7 @@ import { appStore } from '@/store/index.js';
 import * as actions from '@/store/actions.js';
 
 const LABELS = {
+  title: 'Insert title',
   text: 'Insert text',
   bullets: 'Insert list',
   'chart-bar': 'Insert chart',
@@ -13,6 +14,22 @@ const LABELS = {
   'chart-pie': 'Insert chart',
   table: 'Insert table',
 };
+
+/**
+ * An image file (upload, or pasted from the clipboard) as a new image element on the active
+ * slide: downscaled, centred in the content area at its own aspect ratio, moved if that spot is
+ * taken.
+ */
+export async function insertImageFromFile(file, label = 'Insert image') {
+  const img = await prepareImageFile(file);
+  const size = imageBoxSize(img.width, img.height);
+  const bbox = { x: Math.round((ARTBOARD_W - size.w) / 2), y: 300, ...size };
+  return actions.insertElement(
+    appStore,
+    { type: 'image', src: img.src, alt: img.alt, fit: 'contain', bbox },
+    label,
+  );
+}
 
 /** Insert menu actions: starter elements, and images from a file or a URL. */
 export function useInsert() {
@@ -27,17 +44,7 @@ export function useInsert() {
     return id;
   }, []);
 
-  const insertImageFile = useCallback(async (file) => {
-    const img = await prepareImageFile(file);
-    const size = imageBoxSize(img.width, img.height);
-    // Centered in the content area at the photo's aspect ratio; moved if that spot is taken.
-    const bbox = { x: Math.round((ARTBOARD_W - size.w) / 2), y: 300, ...size };
-    return actions.insertElement(
-      appStore,
-      { type: 'image', src: img.src, alt: img.alt, fit: 'contain', bbox },
-      'Insert image',
-    );
-  }, []);
+  const insertImageFile = useCallback((file) => insertImageFromFile(file), []);
 
   const insertImageUrl = useCallback(
     (url) =>
@@ -55,7 +62,8 @@ export function useInsert() {
     return actions.patchElement(
       appStore,
       elementId,
-      { src: img.src, alt: img.alt },
+      // A new picture starts uncropped: the old crop was for the old picture's shape.
+      { src: img.src, alt: img.alt, crop: null, natural: null, credit: null },
       'Replace image',
     );
   }, []);

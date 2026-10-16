@@ -75,11 +75,11 @@
   position: absolute;
   z-index: 15;
   pointer-events: none;
-  animation: reveal-flash 1100ms var(--ease-standard) forwards;
+  animation: reveal-flash var(--motion-highlight) var(--motion-ease-standard) forwards;
 }
 .reveal-flash.ai-flash {
   --flash: var(--ai);
-  animation-duration: 1600ms;
+  animation-duration: var(--motion-highlight-ai);
 }
 @keyframes reveal-flash {
   0% {
@@ -102,7 +102,7 @@
 
 /* Side panel editor: slide in and flash an indigo edge so the eye follows "Edit data" to it. */
 .drawer-enter {
-  animation: drawer-enter 420ms var(--ease-standard);
+  animation: drawer-enter var(--motion-emphasis) var(--motion-ease-enter);
 }
 @keyframes drawer-enter {
   0% {
@@ -117,5 +117,24 @@
   }
   100% {
     box-shadow: inset 3px 0 0 transparent;
+  }
+}
+
+/* AI deletions (D48): a read-only copy of the removed element fades out in place. */
+.ai-ghosts,
+.ai-ghost {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 1080px;
+  pointer-events: none;
+}
+.ai-ghost {
+  animation: ai-ghost-out var(--motion-base) var(--motion-ease-exit) forwards;
+}
+@keyframes ai-ghost-out {
+  to {
+    opacity: 0;
+    scale: 0.96;
   }
 }

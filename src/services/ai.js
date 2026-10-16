@@ -191,7 +191,9 @@ export async function generateDeck(store, { prompt, slideCount }) {
   const s = store.getState();
   const turnId = newTurnId();
   const msgId = newMessageId();
-  s.replaceDeck(createDeck({ id: `d_${Date.now().toString(36)}`, title: 'Untitled presentation' }));
+  // A fresh deck in the open project: same id, so the URL (/deck/:id) and the saved project
+  // stay the same one (D59).
+  s.replaceDeck(createDeck({ id: s.deck.id, title: 'Untitled presentation' }));
   s.addMessage({ id: newMessageId(), role: 'user', text: prompt });
   s.addMessage({
     id: msgId,

@@ -36,14 +36,13 @@ npm run dev        # UI + /api functions (keys from .env)
 
 See [`.env.example`](.env.example). Keys are read only by the serverless functions and never shipped to the browser.
 
-| Name                                         | Purpose                                                                                         |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `LLM_PROVIDER`, `LLM_FALLBACKS`              | Provider chain (default `sarvam`, then `gemini,groq`)                                           |
-| `SARVAM_API_KEY`                             | Sarvam (`sarvam-105b`), primary model                                                           |
-| `GOOGLE_GENERATIVE_AI_API_KEY`               | Gemini fallback                                                                                 |
-| `GROQ_API_KEY`                               | Groq fallback                                                                                   |
-| `SARVAM_MODEL`, `GEMINI_MODEL`, `GROQ_MODEL` | Optional model id overrides (defaults `sarvam-105b`, `gemini-3.8-flash`, `openai/gpt-oss-120b`) |
-| `PEXELS_API_KEY`                             | Optional stock photos for AI-placed images                                                      |
+| Name                                         | Purpose                                                                                                        |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER`, `LLM_FALLBACKS`              | Provider chain (default `sarvam`, then `gemini,groq`)                                                          |
+| `SARVAM_API_KEY`                             | Sarvam (`sarvam-105b`), primary model                                                                          |
+| `GOOGLE_GENERATIVE_AI_API_KEY`               | Gemini: chat fallback, and image descriptions (`/api/describe`; each picture's small copy goes to Gemini once) |
+| `GROQ_API_KEY`                               | Groq fallback                                                                                                  |
+| `SARVAM_MODEL`, `GEMINI_MODEL`, `GROQ_MODEL` | Optional model id overrides (defaults `sarvam-105b`, `gemini-3.8-flash`, `openai/gpt-oss-120b`)                |
 
 ## Architecture overview
 

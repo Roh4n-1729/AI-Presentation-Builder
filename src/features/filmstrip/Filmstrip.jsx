@@ -20,11 +20,15 @@ import { getDeckState, useDeck, useDeckActions } from '@/hooks/useDeck.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
+import { motion } from '@/hooks/motion.js';
 import { ThumbPreview, Thumbnail } from './Thumbnail.jsx';
+
+export const FILMSTRIP_W = 244;
 
 function SortableThumbnail({ slideId, index, theme }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: slideId,
+    transition: motion('move'), // neighbours making room use the motion tokens too
   });
   return (
     <Thumbnail
@@ -64,7 +68,11 @@ export function Filmstrip() {
   const draggingSlide = useDeck((s) => (draggingId ? s.deck.slides[draggingId] : null));
 
   return (
-    <aside className="flex w-[244px] shrink-0 flex-col border-r bg-panel" aria-label="Slides">
+    <aside
+      className="flex h-full shrink-0 flex-col border-r bg-panel"
+      style={{ width: FILMSTRIP_W }}
+      aria-label="Slides"
+    >
       <div className="flex h-11 shrink-0 items-center border-b px-2">
         <Button
           variant="ghost"
@@ -79,7 +87,9 @@ export function Filmstrip() {
           {slideOrder.length} slide{slideOrder.length === 1 ? '' : 's'}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 py-3">
+      {/* Never scrolls sideways; the gutter keeps room for the scrollbar so it can't push the
+          thumbnails out of view (Windows' classic 17 px bar did). */}
+      <div className="flex-1 [scrollbar-gutter:stable] overflow-x-hidden overflow-y-auto px-2 py-3">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -96,13 +106,14 @@ export function Filmstrip() {
               <SortableThumbnail key={id} slideId={id} index={i} theme={theme} />
             ))}
           </SortableContext>
-          <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' }}>
+          <DragOverlay dropAnimation={motion('move')}>
             {draggingSlide ? (
               <div className="pl-7">
                 <ThumbPreview
                   slide={draggingSlide}
                   theme={theme}
-                  className="rotate-1 shadow-float ring-2 ring-user"
+                  active
+                  className="rotate-1 shadow-[0_0_0_2px_var(--user),var(--shadow-float)]"
                 />
               </div>
             ) : null}

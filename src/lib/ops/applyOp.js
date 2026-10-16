@@ -60,6 +60,7 @@ const HANDLERS = {
   update_deck(deck, { patch }) {
     if (patch.title !== undefined) deck.title = patch.title;
     if (patch.theme !== undefined) deck.theme = patch.theme;
+    if (patch.transition !== undefined) deck.transition = patch.transition;
   },
 
   add_slide(deck, { slide, afterSlideId }) {
@@ -133,8 +134,8 @@ const HANDLERS = {
   update_element(deck, { elementId, patch }) {
     const { slide, el } = requireElement(deck, elementId);
     const keys = Object.keys(patch);
-    // A locked element accepts only the patch that unlocks it.
-    if (el.locked && keys.some((k) => k !== 'locked')) assertUnlocked(el);
+    // A locked element accepts only unlocking, and joining or leaving a group (neither moves it).
+    if (el.locked && keys.some((k) => k !== 'locked' && k !== 'groupId')) assertUnlocked(el);
     if ('id' in patch || ('type' in patch && patch.type !== el.type)) {
       throw new OpError('INVALID', 'An element cannot change its id or type');
     }

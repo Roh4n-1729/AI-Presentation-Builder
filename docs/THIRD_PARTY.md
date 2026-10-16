@@ -1,9 +1,8 @@
 # Third-party assets and licenses
 
 Everything the app ships or loads, with its license. Nothing is copied from paid or unlicensed
-sources. Slide themes (Paper, Ink, Sand, Midnight) are our own color sets; they use only the fonts
-below. No images, icons or templates are downloaded from the internet at runtime except the web
-fonts and images a user inserts by URL.
+sources. Slide themes (Paper, Sage, Midnight and their dark display variants Ink and Moss) are our own color sets; they use only the fonts
+below. No icons or templates are downloaded from the internet at runtime; images come only from the user (upload or URL) or from the stock photo search below.
 
 ## Fonts (loaded from Google Fonts)
 
@@ -21,6 +20,7 @@ Office / Windows / macOS. The .pptx only names them; no font files are embedded 
 | Package                                  | Version                | License                                                                            |
 | ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------- |
 | react, react-dom                         | 19.3.1                 | MIT                                                                                |
+| react-router                             | 8.4.0                  | MIT                                                                                |
 | zustand                                  | 5.0.15                 | MIT                                                                                |
 | immer                                    | 11.1.21                | MIT                                                                                |
 | zod                                      | 4.6.7                  | MIT                                                                                |
@@ -45,12 +45,29 @@ provider for their API and is used server-side only (in `/api`), not shipped to 
 confirming with Sarvam before any redistribution; for this assignment it is used as their
 documented integration.
 
+## Stock photos (searched at runtime, D57)
+
+When the AI adds an image, the browser searches these keyless APIs for a photo. Only images under
+**CC0**, the **Public Domain Mark** or **CC BY** are used (no share-alike, non-commercial or
+no-derivatives licences). Each photo keeps its credit (title, author, licence, source page): it
+is shown in the image toolbar and written to the slide's speaker notes in PowerPoint export.
+
+| Service                                                          | Used for        | Terms                                                                   |
+| ---------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------- |
+| [Openverse API](https://api.openverse.org/) (WordPress)          | First search    | Anonymous use within its rate limits; per-image licence and attribution |
+| [Wikimedia Commons API](https://commons.wikimedia.org/w/api.php) | Fallback search | Per-file licence; credit author and licence                             |
+
+## Image descriptions (D58)
+
+Each picture in a deck (uploads, pastes, stock photos) is sent once, as a ≤ 768 px JPEG, to
+Google's Gemini API through `/api/describe`, so the chat model can know what it shows. Nothing
+else about the deck is sent with it except the image's alt text.
+
 ## Build and test tools (not shipped)
 
 vite 8.3.4, @vitejs/plugin-react 6.1.2, tailwindcss + @tailwindcss/vite 4.3.3, tw-animate-css
 1.4.0, eslint 10.12.0 (+ @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh,
-globals), prettier 3.9.10 (+ prettier-plugin-tailwindcss), vitest 5.0.4, fake-indexeddb 6.2.5
-(Apache-2.0), husky 9.1.7, lint-staged 17.6.0. All MIT unless noted.
+globals), prettier 3.9.10 (+ prettier-plugin-tailwindcss), vitest 5.0.4, husky 9.1.7, lint-staged 17.6.0. All MIT unless noted.
 
 ## Chart palettes
 

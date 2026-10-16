@@ -6,6 +6,7 @@ import { createDeck } from '../factories.js';
 import { findElement } from '../ops/index.js';
 import { makeDeck } from '../test-fixtures.js';
 import {
+  buildElementPatch,
   createDeckTools,
   createPlanTool,
   pickTools,
@@ -65,6 +66,35 @@ describe('add tools', () => {
     expect(r.error).toContain('one value per category');
     expect(emitted).toHaveLength(0);
     expect(ctx.deck).toBe(before);
+  });
+
+  it('add_chart keeps only series with numbers; an all-empty chart is refused (D51)', () => {
+    const deck = makeDeck();
+    delete deck.slides.s_bbbbb.elements.el_chart;
+    deck.slides.s_bbbbb.elementOrder = ['el_body'];
+    const { ctx, emitted, tools } = setup(deck);
+    const r = tools.add_chart.execute({
+      slideId: 's_bbbbb',
+      kind: 'bar',
+      categories: ['TAM', 'SAM', 'SOM'],
+      series: [
+        { name: 'Market size', values: [12000, 180, 12] },
+        { name: 'Series 3', values: [0, 0, 0] },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(findElement(ctx.deck, r.elementId).el.chart.series.map((s) => s.name)).toEqual([
+      'Market size',
+    ]);
+    const bad = tools.add_chart.execute({
+      slideId: 's_bbbbb',
+      kind: 'bar',
+      categories: ['A'],
+      series: [{ name: 'x', values: [0] }],
+    });
+    expect(bad.ok).toBe(false);
+    expect(bad.error).toContain('empty');
+    expect(emitted).toHaveLength(1);
   });
 
   it('unknown slide ids are explained', () => {
@@ -224,5 +254,25 @@ describe('context and request contract', () => {
     expect(req.slides.s_next.elements.el_next_image.src).toBe('img:el_next_image');
     expect(JSON.stringify(req).length).toBeLessThan(20000);
     expect(deck.slides.s_next.elements.el_next_image.src.startsWith('data:')).toBe(true); // original untouched
+  });
+});
+
+describe('image query changes (D57)', () => {
+  it('a new query turns a photo back into a placeholder; the same query changes nothing', () => {
+    const deck = makeDeck();
+    deck.slides.s_ccccc.elements.el_img = {
+      id: 'el_img',
+      type: 'image',
+      src: 'data:image/jpeg;base64,AA',
+      alt: 'desk',
+      fit: 'cover',
+      query: 'desk',
+      credit: { text: 'x', license: 'CC0', source: 'openverse' },
+      bbox: { x: 100, y: 300, w: 800, h: 450 },
+    };
+    deck.slides.s_ccccc.elementOrder.push('el_img');
+    const { patch } = buildElementPatch(deck, { elementId: 'el_img', query: 'city skyline' });
+    expect(patch).toMatchObject({ query: 'city skyline', src: '', credit: null });
+    expect(buildElementPatch(deck, { elementId: 'el_img', query: 'desk' }).error).toBeDefined();
   });
 });

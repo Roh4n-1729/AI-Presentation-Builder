@@ -1,9 +1,10 @@
-import { createStore, del, get, set } from 'idb-keyval';
 import { DeckSchema } from '../lib/schema/index.js';
+import { createIdbStore } from './kvStore.js';
 
 /*
- * Local persistence (D20, D40): up to MAX_PROJECTS presentations (deck + chat each) in IndexedDB
- * via idb-keyval. IndexedDB, not localStorage: decks with uploaded images run to megabytes, and
+ * Local persistence (D20, D40, D52): up to MAX_PROJECTS presentations (deck + chat each) in
+ * IndexedDB through a small key-value store (`kvStore.js`, idb-keyval underneath; tests swap in
+ * an in-memory one). IndexedDB, not localStorage: decks with uploaded images run to megabytes, and
  * writes are async so autosave never blocks typing. Nothing leaves the browser.
  *
  *   projects         [{ id, title, slideCount, updatedAt, cover }]   newest first (the index)
@@ -20,7 +21,12 @@ const projectKey = (id) => `project:${id}`;
 const MAX_SAVED_MESSAGES = 100;
 
 let kv;
-const db = () => (kv ??= createStore('ai-presentation-builder', 'kv'));
+const db = () => (kv ??= createIdbStore());
+
+/** Point persistence at another store (tests use `createMemoryStore()`). */
+export function setStorage(store) {
+  kv = store;
+}
 
 /**
  * Chat messages as they should come back after a reload: a run that was streaming when the page
@@ -53,7 +59,7 @@ const entryFor = (deck, updatedAt) => ({
 export async function listProjects() {
   await migrateLegacy();
   try {
-    return (await get(INDEX_KEY, db())) ?? [];
+    return (await db().get(INDEX_KEY)) ?? [];
   } catch (err) {
     console.warn('[persistence] IndexedDB unavailable:', err);
     return [];
@@ -62,7 +68,9 @@ export async function listProjects() {
 
 /** @returns {Promise<{ deck: object, messages: object[], savedAt: number } | null>} */
 export async function loadProject(id) {
-  const raw = await get(projectKey(id), db()).catch(() => null);
+  const raw = await db()
+    .get(projectKey(id))
+    .catch(() => null);
   if (!raw) return null;
   const parsed = DeckSchema.safeParse(raw.deck);
   if (raw.version !== WORKSPACE_VERSION || !parsed.success) {
@@ -81,32 +89,41 @@ export async function loadProject(id) {
 export async function saveProject({ deck, messages }) {
   if (isEmpty(deck, messages)) return;
   const savedAt = Date.now();
-  await set(
-    projectKey(deck.id),
-    { version: WORKSPACE_VERSION, deck, messages: sanitizeMessages(messages), savedAt },
-    db(),
-  );
-  const index = ((await get(INDEX_KEY, db())) ?? []).filter((p) => p.id !== deck.id);
+  await db().set(projectKey(deck.id), {
+    version: WORKSPACE_VERSION,
+    deck,
+    messages: sanitizeMessages(messages),
+    savedAt,
+  });
+  const index = ((await db().get(INDEX_KEY)) ?? []).filter((p) => p.id !== deck.id);
   const next = [entryFor(deck, savedAt), ...index];
-  for (const old of next.slice(MAX_PROJECTS)) await del(projectKey(old.id), db());
-  await set(INDEX_KEY, next.slice(0, MAX_PROJECTS), db());
+  for (const old of next.slice(MAX_PROJECTS)) await db().del(projectKey(old.id));
+  await db().set(INDEX_KEY, next.slice(0, MAX_PROJECTS));
 }
 
 export async function deleteProject(id) {
-  await del(projectKey(id), db());
-  const index = ((await get(INDEX_KEY, db())) ?? []).filter((p) => p.id !== id);
-  await set(INDEX_KEY, index, db());
+  await db().del(projectKey(id));
+  const index = ((await db().get(INDEX_KEY)) ?? []).filter((p) => p.id !== id);
+  await db().set(INDEX_KEY, index);
   if ((await getCurrentProjectId()) === id) await setCurrentProjectId(null);
 }
 
-export const getCurrentProjectId = () => get(CURRENT_KEY, db()).catch(() => null);
-export const setCurrentProjectId = (id) => set(CURRENT_KEY, id, db()).catch(() => {});
+export const getCurrentProjectId = () =>
+  db()
+    .get(CURRENT_KEY)
+    .catch(() => null);
+export const setCurrentProjectId = (id) =>
+  db()
+    .set(CURRENT_KEY, id)
+    .catch(() => {});
 
 /** One-time move of the D39 single-workspace record into the project list. */
 async function migrateLegacy() {
-  const legacy = await get(LEGACY_KEY, db()).catch(() => null);
+  const legacy = await db()
+    .get(LEGACY_KEY)
+    .catch(() => null);
   if (!legacy) return;
-  await del(LEGACY_KEY, db());
+  await db().del(LEGACY_KEY);
   if (legacy.version === WORKSPACE_VERSION && DeckSchema.safeParse(legacy.deck).success) {
     await saveProject({ deck: legacy.deck, messages: legacy.messages ?? [] });
     await setCurrentProjectId(legacy.deck.id);

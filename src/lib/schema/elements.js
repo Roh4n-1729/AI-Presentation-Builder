@@ -25,6 +25,11 @@ const base = {
   locked: z.boolean().optional(),
   slot: z.string().max(40).optional(), // set by the layout engine; cleared when hand-placed (D9)
   name: z.string().max(80).optional(),
+  // Elements sharing a groupId select, move and copy together (D53). Groups live on one slide.
+  groupId: z
+    .string()
+    .regex(/^g_[a-z0-9]{3,40}$/)
+    .optional(),
 };
 
 export const TEXT_ROLES = ['title', 'subtitle', 'body', 'caption'];
@@ -61,6 +66,34 @@ export const ImageElementSchema = z.object({
   alt: z.string().max(300).default(''),
   fit: z.enum(['cover', 'contain']).default('cover'),
   query: z.string().max(200).optional(), // stock-photo search query supplied by the AI
+  // What the picture shows, written once by a vision model (D58) so text-only models can reason
+  // about it. `of` is the fingerprint of the src it describes; a stale one is ignored.
+  description: z.object({ text: z.string().max(600), of: z.string().max(40) }).optional(),
+  // Where a stock photo came from (D57): shown in the editor, written to the PPTX notes.
+  credit: z
+    .object({
+      text: z.string().max(400),
+      url: z.string().max(1000).optional(),
+      license: z.string().max(60),
+      source: z.enum(['openverse', 'wikimedia']),
+    })
+    .optional(),
+  // Crop (D53): the part of the source shown, as fractions of its width/height. The box shows
+  // that region filling it (cover), so resizing the box never stretches the picture. `natural`
+  // is the source size in pixels, recorded when cropping, so the renderer can place the region
+  // without loading the image first.
+  crop: z
+    .object({
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+      w: z.number().gt(0).max(1),
+      h: z.number().gt(0).max(1),
+    })
+    .refine((c) => c.x + c.w <= 1.0001 && c.y + c.h <= 1.0001, {
+      message: 'the crop must stay inside the image',
+    })
+    .optional(),
+  natural: z.object({ w: z.number().positive(), h: z.number().positive() }).optional(),
 });
 
 export const CHART_KINDS = ['bar', 'line', 'area', 'pie', 'stacked-bar'];
@@ -137,7 +170,7 @@ export const ElementSchema = z.discriminatedUnion('type', [
  * @typedef {{ id: string, bbox: BBox, locked?: boolean, slot?: string, name?: string }} ElementBase
  * @typedef {ElementBase & { type: 'text', role: 'title'|'subtitle'|'body'|'caption', paragraphs: Paragraph[],
  *   style: { fontSize?: number, color?: string, fontWeight?: 400|500|600|700, align?: 'left'|'center'|'right', font?: 'heading'|'body' } }} TextElement
- * @typedef {ElementBase & { type: 'image', src: string, alt: string, fit: 'cover'|'contain', query?: string }} ImageElement
+ * @typedef {ElementBase & { type: 'image', src: string, alt: string, fit: 'cover'|'contain', query?: string, credit?: import('../photos.js').PhotoCredit }} ImageElement
  * @typedef {{ kind: 'bar'|'line'|'area'|'pie'|'stacked-bar', title?: string, categories: string[],
  *   series: { name: string, values: number[], color?: string }[], showLegend: boolean,
  *   showDataLabels?: boolean, xAxisLabel?: string, yAxisLabel?: string }} ChartSpec

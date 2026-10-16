@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { isTypingTarget, scrollToSlide } from './dom.js';
 import { getDeckState, useDeckActions } from './useDeck.js';
+import { usePresentNavigation } from './usePresentNavigation.js';
 
 /**
  * Global editor shortcuts. Ctrl and Cmd both work. Text fields own their keys. The drag-cancel
@@ -8,6 +9,7 @@ import { getDeckState, useDeckActions } from './useDeck.js';
  */
 export function useKeyboardShortcuts() {
   const actions = useDeckActions();
+  const present = usePresentNavigation();
   useEffect(() => {
     const onKey = (e) => {
       const s = getDeckState();
@@ -23,8 +25,7 @@ export function useKeyboardShortcuts() {
       if (e.key === 'F5' && s.deck.slideOrder.length) {
         e.preventDefault();
         const index = e.shiftKey ? Math.max(0, s.deck.slideOrder.indexOf(s.activeSlideId)) : 0;
-        s.setPresenting({ index });
-        document.documentElement.requestFullscreen?.().catch(() => {});
+        present.enter(index);
         return;
       }
       if (isTypingTarget(e.target)) return;
@@ -46,6 +47,13 @@ export function useKeyboardShortcuts() {
       if (mod && key === 'y') {
         e.preventDefault();
         s.redo();
+        return;
+      }
+      // Ctrl/Cmd+G groups the selection, +Shift ungroups (D53).
+      if (mod && key === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) actions.ungroupSelection();
+        else actions.groupSelection();
         return;
       }
       if (mod && key === 'd') {
@@ -85,5 +93,5 @@ export function useKeyboardShortcuts() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [actions]);
+  }, [actions, present]);
 }

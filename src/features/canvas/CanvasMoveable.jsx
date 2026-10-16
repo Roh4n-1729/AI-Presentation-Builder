@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Moveable from 'react-moveable';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
-import { elementId as newElementId } from '@/lib/ids.js';
-import { findFreeSpot } from '@/lib/layout/index.js';
+import { remapGroups } from '@/lib/groups.js';
+import { groupId as newGroupId, elementId as newElementId } from '@/lib/ids.js';
+import { findFreeSpot, groupToFreeSpot, shiftGroup } from '@/lib/layout/index.js';
 import { pendingDrag } from './pendingDrag.js';
 
 const ALL_SIDES = { top: true, left: true, bottom: true, right: true, center: true, middle: true };
@@ -25,6 +26,29 @@ function restoreStyles(originals) {
     node.style.width = o.width;
     node.style.height = o.height;
   }
+}
+
+/**
+ * A click (no drag) inside a multi-selection. Moveable covers the selection with one drag area,
+ * so the click never reaches the element underneath; resolve it here (D56). A single group stays
+ * selected as a unit; otherwise (several elements, or after Ungroup) the click selects just the
+ * topmost element under the pointer, Shift toggles it, and a click on empty space between them
+ * clears the selection, as in PowerPoint and Figma.
+ */
+function clickInSelection(slide, targets, e) {
+  const ids = targets.map((n) => n.dataset.elId);
+  const groupIds = new Set(ids.map((id) => slide.elements[id]?.groupId ?? null));
+  if (groupIds.size === 1 && !groupIds.has(null)) return;
+  const x = e.clientX;
+  const y = e.clientY;
+  const under = ids.filter((id) => {
+    const r = targets[ids.indexOf(id)].getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  });
+  const top = slide.elementOrder.filter((id) => under.includes(id)).at(-1);
+  const s = getDeckState();
+  if (top) s.select(top, !!e.inputEvent?.shiftKey);
+  else if (!e.inputEvent?.shiftKey) s.select(null);
 }
 
 /**
@@ -264,29 +288,92 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
             );
           }
         }}
-        /* ---- group drag (multi-select) ---- */
+        /* ---- group drag (multi-select, or a group) ----
+           Same drop rules as a single drag (D54): onto another slide's frame each element lands
+           where it was released; onto a thumbnail the group keeps its arrangement in the nearest
+           free spot; either way the group is shifted inside the artboard as one piece. Alt
+           copies (the copies form a new group). One dispatch = one undo step. */
         onDragGroupStart={(e) => begin(e.events.map((ev) => ev.target))}
         onDragGroup={(e) => {
           if (gesture.current?.cancelled) return;
-          gesture.current.pointer = { x: e.clientX, y: e.clientY, alt: false };
+          const copy = !!e.inputEvent?.altKey;
+          gesture.current.pointer = { x: e.clientX, y: e.clientY, alt: copy };
           e.events.forEach((ev) => {
             ev.target.style.transform = ev.transform;
           });
+          const hit = hitTest(e.clientX, e.clientY);
+          getDeckState().setDropTarget(hit?.slideId ?? null, copy);
+          setBadge(hit ? { x: e.clientX, y: e.clientY, copy } : null);
         }}
         onDragGroupEnd={(e) => {
           const g = gesture.current;
-          if (!g || g.cancelled || !e.isDrag) return end();
-          const ops = e.events.map((ev) => {
-            const [tx, ty] = ev.lastEvent.beforeTranslate;
-            const old = bboxOf(ev.target);
-            return {
-              type: 'move_element',
-              elementId: ev.target.dataset.elId,
-              bbox: { ...old, x: old.x + tx, y: old.y + ty },
-            };
-          });
+          if (!g || g.cancelled) return end();
+          if (!e.isDrag) {
+            end();
+            clickInSelection(slide, targets, e);
+            return;
+          }
+          const p = g.pointer ?? { x: e.clientX, y: e.clientY, alt: false };
+          const copy = e.inputEvent?.altKey ?? p.alt;
+          const hit = hitTest(p.x, p.y);
+          const members = e.events.map((ev) => ({
+            id: ev.target.dataset.elId,
+            old: bboxOf(ev.target),
+            delta: ev.lastEvent?.beforeTranslate ?? [0, 0],
+            rect: ev.target.getBoundingClientRect(), // measure BEFORE end() resets the transforms
+          }));
           end();
-          dispatch(ops, `Move ${ops.length} elements`);
+
+          if (!hit) {
+            const ops = members.map((m) => ({
+              type: 'move_element',
+              elementId: m.id,
+              bbox: { ...m.old, x: m.old.x + m.delta[0], y: m.old.y + m.delta[1] },
+            }));
+            dispatch(ops, `Move ${ops.length} elements`);
+            return;
+          }
+
+          let boxes;
+          if (hit.kind === 'frame') {
+            // Release point on the other slide, converted into its artboard units.
+            const ab = hit.node.querySelector('.artboard').getBoundingClientRect();
+            const dropped = members.map((m) => ({
+              ...m.old,
+              x: (m.rect.left - ab.left) / scale,
+              y: (m.rect.top - ab.top) / scale,
+            }));
+            boxes = shiftGroup(dropped, 0, 0);
+          } else {
+            const target = getDeckState().deck.slides[hit.slideId];
+            boxes = groupToFreeSpot(
+              target,
+              members.map((m) => m.old),
+            );
+          }
+
+          const els = members.map((m) => slide.elements[m.id]);
+          const groups = copy ? remapGroups(els, newGroupId) : {};
+          const ops = [];
+          members.forEach((m, i) => {
+            const newId = copy ? newElementId() : undefined;
+            ops.push({
+              type: 'move_element',
+              elementId: m.id,
+              toSlideId: hit.slideId,
+              newId,
+              bbox: boxes[i],
+            });
+            const gid = els[i]?.groupId;
+            if (copy && gid)
+              ops.push({
+                type: 'update_element',
+                elementId: newId,
+                patch: { groupId: groups[gid] },
+              });
+          });
+          const n = members.length;
+          dispatch(ops, copy ? `Copy ${n} elements to slide` : `Move ${n} elements to slide`);
         }}
         /* ---- resize ---- */
         onResizeStart={(e) => begin([e.target])}

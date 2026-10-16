@@ -50,8 +50,39 @@
   cursor: none;
 }
 .present-root .present-hud {
-  transition: opacity 240ms var(--ease-standard);
+  transition: opacity var(--motion-base) var(--motion-ease-standard);
 }
 .present-root.idle .present-hud {
   opacity: 0;
+}
+
+/* Slide transitions (D48). Both slides are stacked; timing comes from the motion tokens.
+   --dir is 1 going forward, -1 going back, so Push follows the direction of travel. */
+.present-layer {
+  position: absolute;
+  inset: 0;
+}
+.present-fade-enter {
+  animation: present-fade-in var(--motion-move) var(--motion-ease-standard) both;
+}
+.present-push-enter {
+  animation: present-push-in var(--motion-move) var(--motion-ease-standard) both;
+}
+.present-push-exit {
+  animation: present-push-out var(--motion-move) var(--motion-ease-standard) both;
+}
+@keyframes present-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes present-push-in {
+  from {
+    transform: translateX(calc(var(--dir) * 100%));
+  }
+}
+@keyframes present-push-out {
+  to {
+    transform: translateX(calc(var(--dir) * -100%));
+  }
 }
