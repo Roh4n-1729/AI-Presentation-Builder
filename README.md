@@ -3,7 +3,7 @@
 Describe a deck, and the AI plans it, then fills it slide by slide through tool calls. You refine it in chat or directly on a free-form canvas: drag, resize and snap elements, drag them onto other slides, edit chart data and table cells, undo anything, then present or export to PowerPoint or PDF.
 
 - **Live:** https://ai-presentation-builder-eosin.vercel.app/
-- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (architecture decisions and why) · [docs/BUILD_LOG.md](docs/BUILD_LOG.md) (what was built and fixed, in order; both share one numbering, D1–D81) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
+- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (architecture decisions and why) · [docs/BUILD_LOG.md](docs/BUILD_LOG.md) (what was built and fixed, in order; both share one numbering, D1–D82) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
 - **Stack:** Vite + React 19 (JavaScript + JSDoc) · Vercel functions · AI SDK v7 with Sarvam `sarvam-105b` (Gemini and Groq as fallbacks) · Zustand + Immer patches · react-moveable · dnd-kit · Recharts · Tailwind v4 + shadcn/ui · pptxgenjs · React Router · IndexedDB
 - **Why Vite + React (JavaScript), not Next.js:** a stack I can fully own and explain in two days; Zod gives runtime safety where it matters (tool inputs, ops, imported files); the model keys stay server-side in Vercel functions ([D18](docs/DECISIONS.md#d18-vite--react-javascript-on-vercel)).
 
@@ -69,6 +69,8 @@ See [`.env.example`](.env.example). Keys are read only by the serverless functio
 Stock photos for AI-placed images come from Wikimedia Commons, which has no API keys: it is used anonymously.
 
 ## Architecture overview
+
+![System overview: in the browser, the UI, the canonical deck store and services (AI client, autosave, stock photos, image descriptions, export), with IndexedDB and downloads; pure src/lib code (schema, applyOp, layout, agent tools) shared with the Vercel functions plan, populate, agent and describe; external LLMs (Sarvam, then Gemini, then Groq), Gemini vision and Wikimedia Commons](docs/media/architecture.svg)
 
 One rule holds everything together: **every change to a deck is an op**, and every op goes through one function, `dispatch(op)` → `applyOp(deck, op)`. A drag on the canvas, a keyboard shortcut, an edit in the data editor and an AI tool call all end there, so there is one source of truth, one undo history, and nothing can overwrite anything else ([D1](docs/DECISIONS.md#d1-one-op-language-one-dispatch), [D2](docs/DECISIONS.md#d2-the-client-store-is-canonical)).
 

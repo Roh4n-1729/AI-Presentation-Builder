@@ -1,6 +1,12 @@
 # Architecture
 
-> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md), what was built and fixed along the way in [BUILD_LOG.md](BUILD_LOG.md) (one numbering, D1–D81); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
+> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md), what was built and fixed along the way in [BUILD_LOG.md](BUILD_LOG.md) (one numbering, D1–D82); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
+
+## System overview
+
+![System overview: in the browser, the UI, the canonical deck store and services (AI client, autosave, stock photos, image descriptions, export), with IndexedDB and downloads; pure src/lib code (schema, applyOp, layout, agent tools) shared with the Vercel functions plan, populate, agent and describe; external LLMs (Sarvam, then Gemini, then Groq), Gemini vision and Wikimedia Commons](media/architecture.svg)
+
+The browser holds the only copy of the deck. The functions get a snapshot with each request, run the model's tool calls against a throwaway copy, and stream the resulting ops back. Model keys stay in the functions; photo searches go straight from the browser to Wikimedia Commons.
 
 ## The one invariant
 

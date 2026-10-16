@@ -66,6 +66,7 @@ Every record since the build began (D24 onwards), in both files, by date. D1–D
 | 2026-10-16 | [D79](DECISIONS.md#d79-stock-photos-from-wikimedia-commons-only)                                   | Stock photos from Wikimedia Commons only (anonymous, no key); Openverse removed                                                                                                                                       | D57                |
 | 2026-10-16 | [D80](#d80-axis-titles-get-their-own-line)                                                         | Chart axis titles get their own line beside the tick labels instead of sitting on them                                                                                                                                | D51                |
 | 2026-10-16 | [D81](#d81-a-turn-that-changes-nothing-says-so)                                                    | When an edit turn changes nothing and the model gives no summary, the chat says "No changes made" instead of "No changes were needed"                                                                                 | D35                |
+| 2026-10-16 | [D82](#d82-system-overview-diagram)                                                                | System overview diagram (`docs/media/architecture.svg`) at the top of the README architecture section and of ARCHITECTURE.md                                                                                          | D19                |
 
 ---
 
@@ -450,3 +451,10 @@ Every record since the build began (D24 onwards), in both files, by date. D1–D
 - **Problem (from use):** "can you add some images as well" got the reply "No changes were needed." That line is not the model's: it is the app's fallback when a turn ends with no change and no `finish_turn` summary. Here the model had simply not acted, so the fallback told the user the request didn't need doing.
 - **Decision:** the fallback now reads "No changes made. Try rephrasing, or select what you mean." (`NO_CHANGE_SUMMARY` in `services/ai.js`). It only appears when the model gave no summary; when it explains itself through `finish_turn`, its own summary is shown as before. No retry was added: a second run would cost another model call for a request that may not be actionable.
 - **Consequences:** Flow test: a model that answers with prose only leaves the deck untouched and the message ends `done` with the new text. 214 tests.
+
+### D82. System overview diagram
+
+- **Status:** Accepted (2026-10-16). Documentation only.
+- **Problem (Rohan's review):** the README had no architecture diagram, and ARCHITECTURE.md's diagrams each show one flow (ops, layers, drag-and-drop, generation, images), not the whole system.
+- **Decision:** one hand-laid-out SVG, `docs/media/architecture.svg`, at the top of the README's architecture section and of ARCHITECTURE.md. It shows the browser (UI, canonical deck store, services, IndexedDB, downloads), the pure `src/lib` code shared with the functions, the Vercel functions (plan / populate / agent, describe) and the external services (the LLM chain, Gemini vision, Wikimedia Commons), with what travels on each arrow. A Mermaid version was tried first; its automatic layout crossed arrows through boxes at this size, so the picture is drawn by hand. It sits on its own white card, so it reads in GitHub's dark theme too, and has a text alternative.
+- **Consequences:** Rendered in Chromium and checked: no arrow crosses a box or another arrow.
