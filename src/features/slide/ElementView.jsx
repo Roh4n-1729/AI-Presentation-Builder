@@ -14,7 +14,8 @@ export const ElementView = memo(function ElementView({ el, theme, editing }) {
   const ix = useSlideInteraction();
   const Renderer = RENDERERS[el.type];
   const { x, y, w, h, rotation } = el.bbox;
-  const editable = el.type === 'text' || el.type === 'table';
+  // Double-click edits text and tables in place and opens a chart's data editor (D72).
+  const editable = el.type === 'text' || el.type === 'table' || el.type === 'chart';
 
   return (
     <div

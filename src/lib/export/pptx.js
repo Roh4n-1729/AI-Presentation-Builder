@@ -1,5 +1,4 @@
 import { legendAvailable, valueDomain, visibleSeries } from '../chart.js';
-import { TABLE_ROW_UNITS } from '../tabular.js';
 import { ARTBOARD_W } from '../constants.js';
 import { resolveColor, seriesColor, textStyleFor } from '../theme/index.js';
 
@@ -185,9 +184,22 @@ export function chartCall(el, theme) {
   return { kind: 'chart', type: CHART_TYPE[c.kind], data, options };
 }
 
-/** Table element -> addTable(rows, options): native table, same fills, borders and padding. */
+/** Cell text size on the canvas before it shrinks to fit (TableEl), in artboard units. */
+export const TABLE_FONT_UNITS = 28;
 
-export function tableCall(el, theme) {
+/**
+ * Table element -> addTable(rows, options): native table, same fills, borders and padding.
+ * `fitted` ({ size, rowH } in units, measured in the browser with the export font) is the cell
+ * text size at which the table fits its box and each row's share of the box, as on the canvas,
+ * so a compact table keeps its bounds in PowerPoint (D72). Padding scales with the text (em).
+ */
+export function tableCall(el, theme, fitted) {
+  const size = Math.min(fitted?.size ?? TABLE_FONT_UNITS, TABLE_FONT_UNITS);
+  const n = Math.max(1, el.rows.length);
+  // Measured row heights when the browser supplied them, else equal shares of the box.
+  const rowUnits =
+    fitted?.rowH?.length === el.rows.length ? fitted.rowH : Array(n).fill(el.bbox.h / n);
+  const fontPt = size / 2; // 2 artboard units per point
   const c = (role) => hex(resolveColor(role, theme));
   const cols = el.rows[0]?.length ?? 1;
   const border = { type: 'solid', pt: 1, color: c('border') };
@@ -214,13 +226,15 @@ export function tableCall(el, theme) {
       ...box(el.bbox),
       objectName: el.id,
       colW: Array(cols).fill(inch(el.bbox.w) / cols),
-      // Rows share the box's height, at least one line of text plus padding each, as on the
-      // canvas (D56); PowerPoint grows a row whose text wraps.
-      rowH: inch(Math.max(TABLE_ROW_UNITS, el.bbox.h / Math.max(1, el.rows.length))),
+      // Rows share the box's height (D56); the fitted text size makes the content fit it.
+      rowH: rowUnits.map(inch),
       fontFace: EXPORT_FONTS.body,
-      fontSize: 14, // 28 units on the canvas
+      fontSize: fontPt,
       valign: 'middle',
-      margin: [6, 10, 6, 10], // points: the canvas pads cells 0.45em x 0.7em of 28 units
+      // Points: the canvas pads cells 0.45em x 0.7em of the text size.
+      margin: [0.45 * fontPt, 0.7 * fontPt, 0.45 * fontPt, 0.7 * fontPt].map(
+        (m) => Math.round(m * 10) / 10,
+      ),
     },
   };
 }
@@ -325,7 +339,7 @@ export function buildPptxModel(deck, theme, { fitted = {}, images = {} } = {}) {
         case 'chart':
           return [chartCall(el, theme)];
         case 'table':
-          return [tableCall(el, theme)];
+          return [tableCall(el, theme, fitted[id])];
         case 'image':
           return imageCalls(el, theme, images[id]);
         case 'shape':

@@ -1,11 +1,17 @@
-import { buildPptxModel, EXPORT_FONT_CSS, writePptx } from '../lib/export/pptx.js';
+import {
+  buildPptxModel,
+  EXPORT_FONT_CSS,
+  TABLE_FONT_UNITS,
+  writePptx,
+} from '../lib/export/pptx.js';
 import { getTheme, textStyleFor } from '../lib/theme/index.js';
 
 /*
  * Browser half of the PowerPoint export (D44). lib/export/pptx.js maps the deck to pptxgenjs
  * calls; this file supplies what needs a browser:
  *   1. text fit re-measured with the fonts the .pptx will actually use (Cambria/Arial), so a title
- *      that fit in Instrument Serif doesn't overflow in a wider substitute font;
+ *      that fit in Instrument Serif doesn't overflow in a wider substitute font; table cells too,
+ *      so a compact table keeps its box (D72);
  *   2. images cropped (cover) or letterboxed (contain) to their box with the canvas's rounded
  *      corners, so PowerPoint shows the same framing;
  *   3. pptxgenjs itself, loaded on demand (it's ~400 KB; most sessions never export).
@@ -54,6 +60,51 @@ function measureFit(host, el, style, family) {
   return size;
 }
 
+const TABLE_MIN_UNITS = 18; // as TableEl: tables may shrink further than body text
+
+/**
+ * Largest cell size (≤ 28, ≥ 18 units) at which the table's rows fit its box in `family`, and
+ * each row's height at that size, stretched to fill the box as the canvas does (a row whose text
+ * wraps stays taller). @returns {{ size: number, rowH: number[] }}
+ */
+function measureTableFit(host, el, family) {
+  const node = document.createElement('table');
+  Object.assign(node.style, {
+    position: 'absolute',
+    width: `${el.bbox.w}px`,
+    borderCollapse: 'collapse',
+    tableLayout: 'fixed',
+    fontFamily: family,
+    lineHeight: '1.3',
+    wordBreak: 'break-word',
+  });
+  for (const [r, row] of el.rows.entries()) {
+    const tr = node.insertRow();
+    tr.style.height = '2.2em'; // one line plus padding, as TableEl
+    for (const cell of row) {
+      const td = tr.insertCell();
+      td.style.padding = '0.45em 0.7em';
+      td.style.border = '2px solid transparent';
+      td.style.whiteSpace = 'pre-wrap';
+      if (el.headerRow && r === 0) td.style.fontWeight = '600';
+      td.textContent = cell || ' ';
+    }
+  }
+  host.appendChild(node);
+  let size = TABLE_FONT_UNITS;
+  node.style.fontSize = `${size}px`;
+  while (node.offsetHeight > el.bbox.h + 1 && size > TABLE_MIN_UNITS) {
+    size = Math.max(TABLE_MIN_UNITS, Math.floor(size * 0.96));
+    node.style.fontSize = `${size}px`;
+  }
+  const heights = [...node.rows].map((tr) => tr.offsetHeight);
+  const total = heights.reduce((a, b) => a + b, 0) || 1;
+  node.remove();
+  // Share the box in proportion to each row's content. (If the text still overflows at the
+  // smallest size, PowerPoint grows the rows; the canvas clips them.)
+  return { size, rowH: heights.map((h) => (h * el.bbox.h) / total) };
+}
+
 function fitAllText(deck, theme) {
   const host = document.createElement('div');
   Object.assign(host.style, {
@@ -67,6 +118,10 @@ function fitAllText(deck, theme) {
   try {
     for (const sid of deck.slideOrder) {
       for (const el of Object.values(deck.slides[sid].elements)) {
+        if (el.type === 'table') {
+          fitted[el.id] = measureTableFit(host, el, EXPORT_FONT_CSS.body);
+          continue;
+        }
         if (el.type !== 'text') continue;
         const style = textStyleFor(el, theme);
         const role = style.fontFamily === theme.fonts.heading ? 'heading' : 'body';

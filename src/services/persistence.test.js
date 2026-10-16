@@ -63,6 +63,16 @@ describe('projects', () => {
     expect(await listProjects()).toEqual([]);
   });
 
+  it('saves a project that was emptied, so its old contents do not come back (D72)', async () => {
+    const deck = deckWithId('d_empty');
+    await saveProject({ deck, messages: [{ id: 'm1', role: 'user', text: 'hi' }] });
+    await saveProject({ deck: { ...deck, slideOrder: [], slides: {} }, messages: [] });
+    const loaded = await loadProject('d_empty');
+    expect(loaded.deck.slideOrder).toEqual([]);
+    expect(loaded.messages).toEqual([]);
+    expect((await listProjects())[0]).toMatchObject({ id: 'd_empty', slideCount: 0 });
+  });
+
   it('rejects an invalid deck instead of loading it', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await saveProject({

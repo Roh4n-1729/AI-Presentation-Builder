@@ -72,6 +72,7 @@ function handlerFor(store, msgId, applier, extra = {}) {
     textBuf = '';
     if (add) patch((m) => ({ text: (m.text ?? '') + add }));
   };
+
   return (event, data) => {
     if (event === 'status') {
       if (data.phase === 'fallback')
@@ -306,7 +307,7 @@ async function populate(
 ) {
   const patch = (p) => store.getState().patchMessage(msgId, p);
   const failed = [];
-  const started = new Set();
+  const completed = new Set();
   let done = doneSoFar;
   let lastError;
   let next = 0;
@@ -314,7 +315,6 @@ async function populate(
   const worker = async () => {
     while (next < briefs.length && !controller.signal.aborted) {
       const brief = briefs[next++];
-      started.add(brief.slideId);
       const deck = store.getState().deck;
       if (!deck.slides[brief.slideId]) continue; // user deleted the slide meanwhile
       const index = deck.slideOrder.indexOf(brief.slideId);
@@ -334,6 +334,7 @@ async function populate(
           { signal: controller.signal, onEvent: handlerFor(store, msgId, applier) },
         );
         done += 1;
+        completed.add(brief.slideId);
         patch({ progress: { done, total } });
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -347,12 +348,13 @@ async function populate(
   applier.drain();
 
   const aborted = controller.signal.aborted;
-  // Retry candidates: failed slides and slides never started. A slide that was mid-fill when Stop
-  // hit keeps what landed and is not refilled (that could duplicate its elements).
-  const notStarted = briefs.filter((b) => !started.has(b.slideId));
-  const remaining = [...failed, ...notStarted].filter(
-    (b) => store.getState().deck.slides[b.slideId],
-  );
+  // Retry candidates: every slide that wasn't completed and still holds only its title (failed,
+  // never started, or stopped before its first element landed, D72). A slide that was mid-fill
+  // when Stop hit keeps what landed and is not refilled (that could duplicate its elements).
+  const remaining = briefs.filter((b) => {
+    const slide = store.getState().deck.slides[b.slideId];
+    return !completed.has(b.slideId) && slide && slide.elementOrder.length <= 1;
+  });
   const deck = store.getState().deck;
   patch({
     status: aborted ? 'stopped' : failed.length ? 'error' : 'done',

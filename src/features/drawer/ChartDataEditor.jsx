@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { useDeckActions } from '@/hooks/useDeck.js';
+import { useDeck, useDeckActions } from '@/hooks/useDeck.js';
 import { hasAxes, legendAvailable } from '@/lib/chart.js';
 import { chartFromGrid, looksLikeGrid, parseGrid } from '@/lib/tabular.js';
+import { getTheme } from '@/lib/theme/index.js';
 import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { CellInput } from './fields.jsx';
+import { SeriesColorMenu } from './SeriesColorMenu.jsx';
 
 const KINDS = [
   ['bar', 'Bar'],
@@ -69,6 +71,7 @@ function Check({ label, checked, onChange, hint }) {
  */
 export function ChartDataEditor({ el }) {
   const { patchElement } = useDeckActions();
+  const theme = useDeck((s) => getTheme(s.deck.theme, s.colorScheme));
   const [draft, setDraft] = useState(() => toDraft(el.chart));
   // Re-sync when the chart changes from outside (undo, AI edit) — React's "adjust state on prop
   // change" pattern, so inputs keep focus during our own commits.
@@ -204,7 +207,7 @@ export function ChartDataEditor({ el }) {
             <colgroup>
               <col style={{ width: 116 }} />
               {visibleSeries.map((_, i) => (
-                <col key={i} style={{ width: 92 }} />
+                <col key={i} style={{ width: pie ? 92 : 112 }} />
               ))}
               <col style={{ width: 28 }} />
             </colgroup>
@@ -216,6 +219,27 @@ export function ChartDataEditor({ el }) {
                 {visibleSeries.map((s, i) => (
                   <th key={i} className="p-1">
                     <div className="flex items-center gap-0.5">
+                      {/* A pie colors its slices from the palette, so no series color there. */}
+                      {!pie && (
+                        <SeriesColorMenu
+                          series={s}
+                          index={i}
+                          theme={theme}
+                          onChange={(color) =>
+                            apply(
+                              {
+                                ...draft,
+                                series: draft.series.map((x, j) => {
+                                  if (j !== i) return x;
+                                  const { color: _, ...rest } = x;
+                                  return color ? { ...x, color } : rest;
+                                }),
+                              },
+                              'Series color',
+                            )
+                          }
+                        />
+                      )}
                       <CellInput
                         value={s.name}
                         title={s.name}

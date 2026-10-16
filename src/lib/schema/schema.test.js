@@ -18,6 +18,42 @@ describe('DeckSchema', () => {
     deck2.slides.s_bbbbb.elementOrder.pop();
     expect(DeckSchema.safeParse(deck2).success).toBe(false);
   });
+
+  it('rejects inconsistent identities a hand-edited file could carry (D72)', () => {
+    const bad = (mutate) => {
+      const deck = makeDeck();
+      mutate(deck);
+      return DeckSchema.safeParse(deck).success;
+    };
+    // A repeated slide in the order, hiding another one.
+    expect(bad((d) => (d.slideOrder = [d.slideOrder[0], ...d.slideOrder.slice(0, -1)]))).toBe(
+      false,
+    );
+    // A repeated element in a slide's order, hiding another one.
+    expect(
+      bad((d) => {
+        const s = d.slides.s_bbbbb;
+        s.elementOrder = [s.elementOrder[0], ...s.elementOrder.slice(0, -1)];
+      }),
+    ).toBe(false);
+    // A slide stored under another slide's key.
+    expect(
+      bad((d) => {
+        const [a] = d.slideOrder;
+        d.slides[a] = { ...d.slides[a], id: 's_other' };
+      }),
+    ).toBe(false);
+    // The same element id on two slides.
+    expect(
+      bad((d) => {
+        const [a, b] = d.slideOrder;
+        const el = d.slides[a].elements[d.slides[a].elementOrder[0]];
+        d.slides[b].elements[el.id] = structuredClone(el);
+        d.slides[b].elementOrder.push(el.id);
+      }),
+    ).toBe(false);
+    expect(bad(() => {})).toBe(true);
+  });
 });
 
 describe('ElementSchema', () => {

@@ -195,6 +195,32 @@ describe('generate -> edit through the real endpoints (mock model)', () => {
     expect(store.getState().aiBusy).toBe(false);
   });
 
+  it('Stop before any slide content lands still offers to continue every empty slide (D72)', async () => {
+    let waiting = 0;
+    script.current = (opts) => {
+      if (toolNames(opts).includes('plan_deck')) return toolCall('plan_deck', PLAN);
+      // Populate requests hang until the run is stopped (the model's abort signal fires).
+      waiting += 1;
+      return new Promise((_, reject) =>
+        opts.abortSignal?.addEventListener('abort', () => reject(new Error('aborted'))),
+      );
+    };
+    const run = ai.generateDeck(store, { prompt: 'Pitch' });
+    await vi.waitFor(() => expect(waiting).toBeGreaterThanOrEqual(2));
+    ai.stopAi();
+    await run;
+    const msg = store.getState().messages.at(-1);
+    expect(msg.status).toBe('stopped');
+    expect(msg.retry?.briefs).toHaveLength(3); // two in flight + one never started
+
+    script.current = defaultModel;
+    await ai.continueGeneration(store, msg.id);
+    const after = store.getState();
+    expect(after.messages.at(-1).status).toBe('done');
+    for (const id of after.deck.slideOrder)
+      expect(after.deck.slides[id].elementOrder).toHaveLength(2);
+  });
+
   it('a failed populate leaves that slide empty and offers to retry only it', async () => {
     let populateCalls = 0;
     script.current = (opts) => {

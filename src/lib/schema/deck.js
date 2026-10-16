@@ -18,8 +18,11 @@ export const LAYOUTS = [
   'blank',
 ];
 
+/** The order lists every key of the map exactly once (no repeats, nothing missing; D72). */
 const sameIds = (order, map) =>
-  order.length === Object.keys(map).length && order.every((id) => Object.hasOwn(map, id));
+  new Set(order).size === order.length &&
+  order.length === Object.keys(map).length &&
+  order.every((id) => Object.hasOwn(map, id));
 
 export const SlideSchema = z
   .object({
@@ -56,7 +59,18 @@ export const DeckSchema = z
   })
   .refine((d) => sameIds(d.slideOrder, d.slides), {
     message: 'slideOrder must list exactly the ids in slides',
-  });
+  })
+  .refine((d) => d.slideOrder.every((id) => d.slides[id]?.id === id), {
+    message: 'slide map keys must match slide ids',
+  })
+  // Ops address elements by id alone (findElement), so an id must be unique across the deck.
+  .refine(
+    (d) => {
+      const ids = Object.values(d.slides).flatMap((s) => s.elementOrder);
+      return new Set(ids).size === ids.length;
+    },
+    { message: 'element ids must be unique across slides' },
+  );
 
 /**
  * @typedef {'title'|'content'|'two-column'|'comparison'|'section'|'chart-focus'|'blank'} Layout

@@ -24,20 +24,44 @@ function rateLimited(request) {
   return list.length > MAX_PER_WINDOW ? Math.ceil((WINDOW_MS - (now - list[0])) / 1000) : 0;
 }
 
+const tooLarge = () => ({
+  response: json(413, {
+    code: 'TOO_LARGE',
+    message: 'Request too large. Images must not be sent with chat requests.',
+  }),
+});
+
+/**
+ * The body as text, read until `maxBytes` and no further (D72): Content-Length can be absent
+ * (chunked) or wrong, so the actual bytes are counted. Null when the body is too large.
+ */
+async function readCapped(request, maxBytes) {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder(); // streaming: a character split across chunks stays whole
+  let text = '';
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
+}
+
 /**
  * Validate a POST body against a Zod schema.
  * @returns {Promise<{ body: any } | { response: Response }>}
  */
 export async function readRequest(request, schema, { maxBytes = MAX_REQUEST_BYTES } = {}) {
-  const size = Number(request.headers.get('content-length') || 0);
-  if (size > maxBytes) {
-    return {
-      response: json(413, {
-        code: 'TOO_LARGE',
-        message: 'Request too large. Images must not be sent with chat requests.',
-      }),
-    };
-  }
+  // A declared size over the limit is refused before reading anything; the read below enforces
+  // the limit on the bytes that actually arrive.
+  if (Number(request.headers.get('content-length') || 0) > maxBytes) return tooLarge();
   const wait = rateLimited(request);
   if (wait) {
     return {
@@ -52,9 +76,11 @@ export async function readRequest(request, schema, { maxBytes = MAX_REQUEST_BYTE
       ),
     };
   }
+  const text = await readCapped(request, maxBytes);
+  if (text === null) return tooLarge();
   let raw;
   try {
-    raw = await request.json();
+    raw = JSON.parse(text);
   } catch {
     return { response: json(400, { code: 'BAD_JSON', message: 'Body must be JSON.' }) };
   }

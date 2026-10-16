@@ -61,3 +61,16 @@ describe('seriesColor', () => {
     expect(seriesColor({ color: '#112233' }, 3, theme)).toBe('#112233');
   });
 });
+
+describe('series colors (D72)', () => {
+  it('palette slots follow the theme; roles, hex and automatic still work', async () => {
+    const { seriesColor } = await import('./resolveColor.js');
+    const paper = getTheme('paper');
+    const sage = getTheme('sage');
+    expect(seriesColor({ color: 'chart3' }, 0, paper)).toBe(paper.chart[2]);
+    expect(seriesColor({ color: 'chart3' }, 0, sage)).toBe(sage.chart[2]);
+    expect(seriesColor({ color: '#123456' }, 0, paper)).toBe('#123456');
+    expect(seriesColor({ color: 'accent2' }, 0, paper)).toBe(paper.colors.accent2);
+    expect(seriesColor({}, 1, paper)).toBe(paper.chart[1]);
+  });
+});

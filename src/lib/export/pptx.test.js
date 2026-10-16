@@ -2,7 +2,16 @@ import PptxGenJS from 'pptxgenjs';
 import { describe, expect, it } from 'vitest';
 import { createSampleDeck } from '../sampleDeck.js';
 import { getTheme, textStyleFor } from '../theme/index.js';
-import { buildPptxModel, chartCall, inch, pptxColor, pt, textCall, writePptx } from './pptx.js';
+import {
+  buildPptxModel,
+  chartCall,
+  inch,
+  pptxColor,
+  pt,
+  tableCall,
+  textCall,
+  writePptx,
+} from './pptx.js';
 
 const theme = getTheme('paper');
 const deck = createSampleDeck();
@@ -90,5 +99,36 @@ describe('stock photo credits (D57)', () => {
     expect(notes).toBe(
       'Say hello.\n\nImage: "Planning" by Ann Lee (CC BY 4.0) https://commons.wikimedia.org/wiki/File:Planning.jpg',
     );
+  });
+});
+
+describe('table export keeps the box (D72)', () => {
+  const theme = getTheme('paper');
+  const el = {
+    id: 'el_tab',
+    type: 'table',
+    headerRow: true,
+    rows: [
+      ['Plan', 'Price'],
+      ['Free', '0'],
+      ['Pro', '12'],
+      ['Team', '30'],
+    ],
+    bbox: { x: 100, y: 300, w: 800, h: 176 }, // 44 units a row: the editor's compact minimum
+  };
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+
+  it('without a measurement, rows share the box and keep 14 pt text', () => {
+    const { options } = tableCall(el, theme);
+    expect(sum(options.rowH)).toBeCloseTo(inch(176), 3);
+    expect(options.fontSize).toBe(14);
+  });
+
+  it('uses the measured text size, row heights and scaled padding', () => {
+    const { options } = tableCall(el, theme, { size: 20, rowH: [50, 42, 42, 42] });
+    expect(options.rowH).toEqual([50, 42, 42, 42].map(inch));
+    expect(sum(options.rowH)).toBeCloseTo(inch(176), 3);
+    expect(options.fontSize).toBe(10);
+    expect(options.margin).toEqual([4.5, 7, 4.5, 7]);
   });
 });

@@ -83,11 +83,12 @@ export async function loadProject(id) {
 
 /**
  * Save one project and move it to the top of the index. Keeps the MAX_PROJECTS most recently
- * updated; older ones are deleted (the StartScreen says so). An empty deck with no chat is not
- * saved, so "Start blank" and abandoned starts don't fill the list.
+ * updated; older ones are deleted (the StartScreen says so). A new, empty deck with no chat is
+ * not saved, so "Start blank" and abandoned starts don't fill the list. A project that was saved
+ * before is saved even when emptied, or the old contents would come back on reload (D72).
  */
 export async function saveProject({ deck, messages }) {
-  if (isEmpty(deck, messages)) return;
+  if (isEmpty(deck, messages) && !(await db().get(projectKey(deck.id)))) return;
   const savedAt = Date.now();
   await db().set(projectKey(deck.id), {
     version: WORKSPACE_VERSION,
