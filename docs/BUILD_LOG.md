@@ -65,6 +65,7 @@ Every record since the build began (D24 onwards), in both files, by date. D1–D
 | 2026-10-16 | [D78](#d78-bring-forward-and-send-backward-in-the-floating-toolbar)                                | Floating toolbar: Bring forward / Send backward (one layer) next to Bring to front / Send to back; buttons disabled at the end of the stack                                                                           | D30, D42           |
 | 2026-10-16 | [D79](DECISIONS.md#d79-stock-photos-from-wikimedia-commons-only)                                   | Stock photos from Wikimedia Commons only (anonymous, no key); Openverse removed                                                                                                                                       | D57                |
 | 2026-10-16 | [D80](#d80-axis-titles-get-their-own-line)                                                         | Chart axis titles get their own line beside the tick labels instead of sitting on them                                                                                                                                | D51                |
+| 2026-10-16 | [D81](#d81-a-turn-that-changes-nothing-says-so)                                                    | When an edit turn changes nothing and the model gives no summary, the chat says "No changes made" instead of "No changes were needed"                                                                                 | D35                |
 
 ---
 
@@ -442,3 +443,10 @@ Every record since the build began (D24 onwards), in both files, by date. D1–D
 - **Problem (from use):** with an x-axis title set ("Target Segment"), the title was drawn on top of the category labels: Recharts gives the x axis a fixed 30-unit area, the tick labels (22 units) fill it, and the title was placed inside the same area. The y-axis title had the same problem next to the value labels.
 - **Decision:** `features/slide/elements/ChartEl.jsx`. The x-axis area is 36 units for its tick labels and grows by one label line plus a gap (`AXIS_TITLE_SPACE`, 38 units) when a title is set; the title sits at the bottom of that area. The y-axis area grows the same way (80 → 118 units), with the title on its outer edge. Without titles the layout is unchanged. The PowerPoint export already used PowerPoint's own axis titles, which lay themselves out.
 - **Consequences:** Browser check on the production build, sample deck with both titles on the bar and the line chart: no axis title box overlaps any tick label; screenshots show the title on its own line under the categories. Lint passes; 213 tests.
+
+### D81. A turn that changes nothing says so
+
+- **Status:** Accepted (2026-10-16). Amends D35 (chat summaries).
+- **Problem (from use):** "can you add some images as well" got the reply "No changes were needed." That line is not the model's: it is the app's fallback when a turn ends with no change and no `finish_turn` summary. Here the model had simply not acted, so the fallback told the user the request didn't need doing.
+- **Decision:** the fallback now reads "No changes made. Try rephrasing, or select what you mean." (`NO_CHANGE_SUMMARY` in `services/ai.js`). It only appears when the model gave no summary; when it explains itself through `finish_turn`, its own summary is shown as before. No retry was added: a second run would cost another model call for a request that may not be actionable.
+- **Consequences:** Flow test: a model that answers with prose only leaves the deck untouched and the message ends `done` with the new text. 214 tests.

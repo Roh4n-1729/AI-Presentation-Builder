@@ -111,6 +111,9 @@ function historyFor(messages) {
  * One edit turn: the user's request -> targeted patches.
  * @param {ReturnType<import('../store/index.js').createAppStore>} store
  */
+/** Shown when an edit turn ends with no changes and no summary from the model (D81). */
+export const NO_CHANGE_SUMMARY = 'No changes made. Try rephrasing, or select what you mean.';
+
 export async function runEdit(store, text) {
   const s = store.getState();
   const history = historyFor(s.messages);
@@ -167,7 +170,9 @@ export async function runEdit(store, text) {
         m.summary ||
         (m.chips.length
           ? `Made ${m.chips.length} change${m.chips.length === 1 ? '' : 's'}.`
-          : 'No changes were needed.'),
+          : // Our text, not the model's: the turn ended without a change or a summary, so say
+            // that nothing was done rather than that nothing was needed (D81).
+            NO_CHANGE_SUMMARY),
     }));
   } catch (err) {
     applier.drain();

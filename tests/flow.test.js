@@ -183,6 +183,27 @@ describe('generate -> edit through the real endpoints (mock model)', () => {
     expect(deck.slides[from].elements.el_rev_chart).toBeUndefined();
   });
 
+  it('a turn that changes nothing says so, not that nothing was needed (D81)', async () => {
+    // The model only writes prose: no tool call, so no change and no finish_turn summary.
+    script.current = async () => ({
+      stream: simulateReadableStream({
+        chunks: [
+          { type: 'stream-start', warnings: [] },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'Sure.' },
+          { type: 'text-end', id: 't1' },
+          { type: 'finish', finishReason: { unified: 'stop', raw: 'stop' }, usage },
+        ],
+      }),
+    });
+    const before = store.getState().deck;
+    await ai.runEdit(store, 'can you add some images as well');
+    const msg = store.getState().messages.at(-1);
+    expect(store.getState().deck).toBe(before);
+    expect(msg.status).toBe('done');
+    expect(msg.summary).toBe(ai.NO_CHANGE_SUMMARY);
+  });
+
   it('a provider error before any op shows a retryable error on the message', async () => {
     script.current = async () => {
       throw Object.assign(new Error('rate limited'), { statusCode: 429, isRetryable: false });

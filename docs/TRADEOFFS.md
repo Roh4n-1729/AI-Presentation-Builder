@@ -150,7 +150,6 @@ This file records options I evaluated and deliberately did **not** implement, wh
 - **Why:** Virtualization would break things the product depends on: dropping onto the adjacent slide, scrolling to a slide, active-slide tracking, and the print view. Decks are 5–20 slides.
 - **What we do instead:**
   - each slide frame and thumbnail is memoized and reads only its own slide (Immer keeps untouched slides as the same object);
-  - off-screen frames use `content-visibility: auto`, so the browser skips rendering them while they stay in the DOM for hit-testing;
   - Moveable mounts only on the slide holding the selection;
   - chart animations are off in thumbnails and print.
 - **Revisit when:** profiling shows lag at about 30+ slides. Next step: render off-screen frames as same-size placeholders.
