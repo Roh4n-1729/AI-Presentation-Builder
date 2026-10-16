@@ -3,7 +3,7 @@
 Describe a deck, and the AI plans it, then fills it slide by slide through tool calls. You refine it in chat or directly on a free-form canvas: drag, resize and snap elements, drag them onto other slides, edit chart data and table cells, undo anything, then present or export to PowerPoint or PDF.
 
 - **Live:** https://ai-presentation-builder-eosin.vercel.app/
-- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (architecture decisions and why) · [docs/BUILD_LOG.md](docs/BUILD_LOG.md) (what was built and fixed, in order; both share one numbering, D1–D79) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
+- **Design records:** [docs/DECISIONS.md](docs/DECISIONS.md) (architecture decisions and why) · [docs/BUILD_LOG.md](docs/BUILD_LOG.md) (what was built and fixed, in order; both share one numbering, D1–D80) · [docs/TRADEOFFS.md](docs/TRADEOFFS.md) (what was deliberately not built) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (diagrams) · [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md) (licences)
 - **Stack:** Vite + React 19 (JavaScript + JSDoc) · Vercel functions · AI SDK v7 with Sarvam `sarvam-105b` (Gemini and Groq as fallbacks) · Zustand + Immer patches · react-moveable · dnd-kit · Recharts · Tailwind v4 + shadcn/ui · pptxgenjs · React Router · IndexedDB
 - **Why Vite + React (JavaScript), not Next.js:** a stack I can fully own and explain in two days; Zod gives runtime safety where it matters (tool inputs, ops, imported files); the model keys stay server-side in Vercel functions ([D18](docs/DECISIONS.md#d18-vite--react-javascript-on-vercel)).
 

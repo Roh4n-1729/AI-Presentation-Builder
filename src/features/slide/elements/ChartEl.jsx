@@ -18,6 +18,11 @@ import { resolveColor, seriesColor } from '@/lib/theme/index.js';
 const TITLE_H = 48; // title line
 const LEGEND_H = 40; // legend line, under the title (own row, so a long legend never hides the title)
 const LABEL_FONT = 22;
+// Axis titles get their own line beside the tick labels (D80): the axis area grows by one label
+// line plus a gap, so a title never sits on the ticks.
+const AXIS_TITLE_SPACE = LABEL_FONT + 16;
+const X_TICKS_H = 36; // tick labels under the x axis
+const Y_TICKS_W = 80; // tick labels left of the y axis
 
 // Axis ticks stay short on big axes (4K, 8K, 12K: one format for the whole axis, chosen by its
 // range); data labels show the exact value with digit grouping (12,000).
@@ -121,9 +126,10 @@ export function ChartEl({ el, theme }) {
           // don't sit on the value axis and its top tick.
           padding={pointMarks ? { left: 40, right: 40 } : undefined}
           axisLine={{ stroke: line, strokeWidth: 2 }}
+          height={X_TICKS_H + (chart.xAxisLabel ? AXIS_TITLE_SPACE : 0)}
           label={
             chart.xAxisLabel
-              ? { value: chart.xAxisLabel, position: 'insideBottom', offset: -4, ...font }
+              ? { value: chart.xAxisLabel, position: 'insideBottom', offset: 0, ...font }
               : undefined
           }
         />
@@ -131,7 +137,7 @@ export function ChartEl({ el, theme }) {
           tick={font}
           tickLine={false}
           axisLine={false}
-          width={80}
+          width={Y_TICKS_W + (chart.yAxisLabel ? AXIS_TITLE_SPACE : 0)}
           domain={domain}
           tickCount={5}
           tickFormatter={tickFormatFor(domain)}

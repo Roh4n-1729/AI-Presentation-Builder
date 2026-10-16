@@ -1,6 +1,6 @@
 # Architecture
 
-> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md), what was built and fixed along the way in [BUILD_LOG.md](BUILD_LOG.md) (one numbering, D1–D79); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
+> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md), what was built and fixed along the way in [BUILD_LOG.md](BUILD_LOG.md) (one numbering, D1–D80); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
 
 ## The one invariant
 

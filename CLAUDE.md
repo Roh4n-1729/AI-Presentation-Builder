@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Architecture decisions: `docs/DECISIONS.md`; what was built and fixed, in order: `docs/BUILD_LOG.md` (one numbering across both, D1–D79); rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Architecture decisions: `docs/DECISIONS.md`; what was built and fixed, in order: `docs/BUILD_LOG.md` (one numbering across both, D1–D80); rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -88,6 +88,7 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] AI may lock but never unlock (`buildElementPatch`, D77); JSDoc typedefs match the Zod schemas; 213 tests
 - [x] Floating toolbar: Bring forward / Send backward (one layer) beside front / back (D78); 214 tests
 - [x] Stock photos from Wikimedia Commons only (Openverse removed); decisions split into `DECISIONS.md` (architecture) and `BUILD_LOG.md` (build) (D79); 213 tests
+- [x] Chart axis titles on their own line beside the tick labels (D80)
 - [ ] Check stock photos on the live URL (CORS of image hosts, real limits)
 
 ## Where things are
