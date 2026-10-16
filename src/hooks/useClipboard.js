@@ -29,9 +29,20 @@ const editorFocused = (e) => {
   );
 };
 
+/**
+ * Text the user selected on the page (a chat message, a label). Slides can't hold a text
+ * selection except while editing (`user-select: none`), so any selection is outside them, and it
+ * wins over the selected elements: Ctrl+C copies what is highlighted (D73).
+ */
+const hasPageTextSelection = () => {
+  const sel = document.getSelection();
+  return Boolean(sel && !sel.isCollapsed && sel.toString().trim());
+};
+
 function copySelection(e, cut) {
   const s = appStore.getState();
-  if (!editorFocused(e) || !s.selection.length) return; // nothing selected: the browser's copy
+  // Nothing selected, or text highlighted on the page: the browser's own copy.
+  if (!editorFocused(e) || !s.selection.length || hasPageTextSelection()) return;
   const hit = findElement(s.deck, s.selection[0]);
   const payload = hit && copyPayload(s.deck, hit.slide.id, s.selection);
   if (!payload) return;
@@ -126,7 +137,16 @@ export function useClipboard() {
     document.addEventListener('copy', onCopy);
     document.addEventListener('cut', onCut);
     document.addEventListener('paste', onPaste);
+    // Pressing a slide or thumbnail moves the focus of copy back to the elements: drop any page
+    // text highlight (slides are user-select: none, so the click alone wouldn't clear it, D73).
+    const onPointerDown = (e) => {
+      if (isTypingTarget(e.target)) return;
+      if (e.target.closest?.('[data-slide-frame], [data-slide-drop]'))
+        document.getSelection()?.removeAllRanges();
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('copy', onCopy);
       document.removeEventListener('cut', onCut);
       document.removeEventListener('paste', onPaste);
