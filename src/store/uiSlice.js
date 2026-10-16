@@ -2,6 +2,8 @@ import { SIDE_WIDTH } from '../lib/constants.js';
 import { expandToGroups } from '../lib/groups.js';
 import { findElement } from '../lib/ops/index.js';
 
+let toastSeq = 0;
+
 const clampSide = (w) => Math.round(Math.max(SIDE_WIDTH.min, Math.min(SIDE_WIDTH.max, w)));
 
 /** Editor UI state: not part of the deck, not in history. */
@@ -33,6 +35,46 @@ export const createUiSlice = (initialDeck) => (set) => ({
   saveStatus: 'idle',
   /** saved presentations for the StartScreen: [{ id, title, slideCount, updatedAt, cover, theme }] */
   recentProjects: [],
+  /**
+   * Toasts (D62): [{ id, kind: 'success'|'error'|'info', title, description?, action?, duration }].
+   * `action` is { label, onAction }.
+   */
+  toasts: [],
+  /**
+   * The one open modal (D62): { kind: 'confirm'|'prompt', title, description?, confirmLabel?,
+   * destructive?, label?, placeholder?, defaultValue?, validate?, resolve } | null.
+   */
+  dialog: null,
+
+  /** Show a toast; returns its id. Errors stay longer, and toasts with an action longer still. */
+  toast: (t) => {
+    const id = `toast${++toastSeq}`;
+    const duration = t.duration ?? (t.action ? 6000 : t.kind === 'error' ? 6000 : 3500);
+    set((s) => ({ toasts: [...s.toasts.slice(-2), { kind: 'info', ...t, id, duration }] }));
+    return id;
+  },
+  dismissToast: (id) =>
+    set((s) =>
+      s.toasts.some((t) => t.id === id) ? { toasts: s.toasts.filter((t) => t.id !== id) } : s,
+    ),
+  /**
+   * Open a modal and wait for the answer: confirm → true/false; prompt → the text or null.
+   * A second request while one is open cancels the first.
+   * @returns {Promise<boolean | string | null>}
+   */
+  openDialog: (spec) =>
+    new Promise((resolve) =>
+      set((s) => {
+        s.dialog?.resolve(spec.kind === 'prompt' ? null : false);
+        return { dialog: { ...spec, resolve } };
+      }),
+    ),
+  closeDialog: (value) =>
+    set((s) => {
+      if (!s.dialog) return s;
+      s.dialog.resolve(value);
+      return { dialog: null };
+    }),
 
   // The drawer lives in the right-hand panel, so opening it also shows that panel.
   openDrawer: (elementId) =>

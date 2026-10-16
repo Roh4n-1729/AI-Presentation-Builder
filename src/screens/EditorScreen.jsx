@@ -4,7 +4,6 @@ import { EditorDrawer } from '@/features/drawer/EditorDrawer.jsx';
 import { Filmstrip, FILMSTRIP_W } from '@/features/filmstrip/Filmstrip.jsx';
 import { PanelSlot } from '@/features/sidepanel/PanelSlot.jsx';
 import { PrintView } from '@/features/present/PrintView.jsx';
-import { OpErrorToast } from '@/features/topbar/OpErrorToast.jsx';
 import { TopBar } from '@/features/topbar/TopBar.jsx';
 import { useDeck } from '@/hooks/useDeck.js';
 import { useClipboard } from '@/hooks/useClipboard.js';
@@ -30,7 +29,6 @@ export function EditorScreen() {
           {drawerOpen ? <EditorDrawer /> : <ChatPanel />}
         </PanelSlot>
       </div>
-      <OpErrorToast />
       {printing && <PrintView />}
     </div>
   );

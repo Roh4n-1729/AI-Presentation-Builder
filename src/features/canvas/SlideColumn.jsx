@@ -7,6 +7,7 @@ import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { InsertBetween } from './InsertBetween.jsx';
+import { PlanningPlaceholder } from './PlanningPlaceholder.jsx';
 import { SlideNotes } from './SlideNotes.jsx';
 import { SlideFrame } from './SlideFrame.jsx';
 import './canvas.css';
@@ -41,7 +42,7 @@ export function SlideColumn() {
       className="isolate flex min-w-0 flex-1 flex-col items-center overflow-x-hidden overflow-y-auto bg-canvas px-16 pt-10 pb-32"
     >
       {slideOrder.length === 0 && aiBusy ? (
-        <PlanningPlaceholder scale={scale} />
+        <PlanningPlaceholder scale={scale} theme={theme} />
       ) : slideOrder.length === 0 ? (
         <div className="mt-32 flex max-w-sm flex-col items-center gap-3 text-center">
           <LayoutTemplate className="size-10 text-faint" strokeWidth={1.25} />
@@ -62,26 +63,6 @@ export function SlideColumn() {
           </div>
         ))
       )}
-    </div>
-  );
-}
-
-/** While the AI plans a new deck (before any slide exists): ghost frames in the AI's color. */
-function PlanningPlaceholder({ scale }) {
-  return (
-    <div className="flex flex-col items-center gap-10" aria-live="polite">
-      <p className="text-ui text-muted-foreground">Planning the outline…</p>
-      {[0, 1].map((i) => (
-        <div
-          key={i}
-          className="animate-pulse rounded-md border border-dashed border-ai/40 bg-ai-soft/40"
-          style={{
-            width: ARTBOARD_W * scale,
-            height: ARTBOARD_H * scale,
-            animationDelay: `${i * 200}ms`,
-          }}
-        />
-      ))}
     </div>
   );
 }

@@ -3,11 +3,19 @@ import Moveable from 'react-moveable';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { remapGroups } from '@/lib/groups.js';
 import { groupId as newGroupId, elementId as newElementId } from '@/lib/ids.js';
-import { findFreeSpot, groupToFreeSpot, shiftGroup } from '@/lib/layout/index.js';
+import { fitOnSlide, shiftGroup } from '@/lib/layout/index.js';
 import { pendingDrag } from './pendingDrag.js';
 
 const ALL_SIDES = { top: true, left: true, bottom: true, right: true, center: true, middle: true };
 const SCROLL_OPTIONS = { checkScrollEvent: true };
+
+/** Ops for the elements that gave up room on a full slide (D63). */
+const makeRoomOps = (fit) =>
+  fit.adjust.map((a) => ({
+    type: 'update_element',
+    elementId: a.id,
+    patch: { bbox: a.bbox },
+  }));
 
 /** Remember the inline styles Moveable will change during a gesture. */
 const saveStyles = (nodes) =>
@@ -264,17 +272,22 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
               copy ? 'Copy element to slide' : 'Move element to slide',
             );
           } else if (hit?.kind === 'thumb') {
-            // Thumbnail: no precise point, so the free spot nearest the old position (resolved here, D24).
+            // Thumbnail: no precise point, so a free spot near the old position, shrinking if
+            // needed; on a full slide the elements in the way give up room (D61, D63). Resolved
+            // here (D24); one dispatch, one undo step.
             const target = getDeckState().deck.slides[hit.slideId];
-            const bbox = findFreeSpot(target, { w: old.w, h: old.h }, { x: old.x, y: old.y });
+            const fit = fitOnSlide(target, [old]);
             dispatch(
-              {
-                type: 'move_element',
-                elementId: id,
-                toSlideId: hit.slideId,
-                newId: copy ? newElementId() : undefined,
-                bbox,
-              },
+              [
+                {
+                  type: 'move_element',
+                  elementId: id,
+                  toSlideId: hit.slideId,
+                  newId: copy ? newElementId() : undefined,
+                  bbox: fit.boxes[0],
+                },
+                ...makeRoomOps(fit),
+              ],
               copy ? 'Copy element to slide' : 'Move element to slide',
             );
           } else {
@@ -335,6 +348,7 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
           }
 
           let boxes;
+          let roomOps = [];
           if (hit.kind === 'frame') {
             // Release point on the other slide, converted into its artboard units.
             const ab = hit.node.querySelector('.artboard').getBoundingClientRect();
@@ -346,10 +360,12 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
             boxes = shiftGroup(dropped, 0, 0);
           } else {
             const target = getDeckState().deck.slides[hit.slideId];
-            boxes = groupToFreeSpot(
+            const fit = fitOnSlide(
               target,
               members.map((m) => m.old),
             );
+            boxes = fit.boxes;
+            roomOps = makeRoomOps(fit);
           }
 
           const els = members.map((m) => slide.elements[m.id]);
@@ -372,6 +388,7 @@ export function CanvasMoveable({ slide, frameRef, artboardRef, scale }) {
                 patch: { groupId: groups[gid] },
               });
           });
+          ops.push(...roomOps);
           const n = members.length;
           dispatch(ops, copy ? `Copy ${n} elements to slide` : `Move ${n} elements to slide`);
         }}

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { elementId as newElementId, slideId as newSlideId } from '../ids.js';
-import { findFreeSpot, LAYOUT_DEFS, placeElement, reflowLayout } from '../layout/index.js';
+import { fitOnSlide, LAYOUT_DEFS, placeElement, reflowLayout } from '../layout/index.js';
 import { applyOp, findElement, OpError } from '../ops/index.js';
 import { createSlide } from '../factories.js';
 import { CHART_KINDS, SHAPES, TEXT_ROLES } from '../schema/elements.js';
@@ -60,6 +60,15 @@ const paragraphsField = z
   .max(12)
   .describe('One string per paragraph or bullet point. Keep bullets short (≤ 12 words).');
 
+/** Layouts made for a title and one line under it (D64). */
+const COVER_LAYOUTS = new Set(['title', 'section']);
+/** Elements that are slide content rather than a heading line. */
+const isBodyContent = (el) =>
+  el.type === 'chart' ||
+  el.type === 'table' ||
+  el.type === 'image' ||
+  (el.type === 'text' && el.role === 'body');
+
 const explicitBox = (i) =>
   [i.x, i.y, i.w, i.h].every((v) => typeof v === 'number')
     ? { x: i.x, y: i.y, w: i.w, h: i.h }
@@ -72,7 +81,7 @@ const toParagraphs = (list, bullets) =>
  * @param {{ deck: object }} ctx  holder for the working copy (replaced on every successful op)
  * @param {{ emit?: (ev: { ops: object[], toolName: string }) => void, defaultSlideId?: string }} [opts]
  */
-export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
+export function createDeckTools(ctx, { emit = () => {}, defaultSlideId, phase } = {}) {
   /** Apply ops to a copy; commit + emit only if all succeed (all-or-nothing, like dispatch). */
   function commit(toolName, ops) {
     const next = structuredClone(ctx.deck);
@@ -101,14 +110,33 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
 
   /** Shared add-element path: place, mint id, commit. */
   function addElement(toolName, input, partial) {
-    const slide = slideOf(input.slideId);
+    let slide = slideOf(input.slideId);
     if (!slide) return noSlide(input.slideId);
+    // Cover-style layouts (title, section) hold a title and one subtitle line. While generating,
+    // real content on them is either refused (the deck's cover) or moves the slide to the
+    // content layout first, so it goes below the title instead of wherever there's room (D64).
+    if (phase === 'populate' && COVER_LAYOUTS.has(slide.layout) && isBodyContent(partial)) {
+      if (ctx.deck.slideOrder[0] === slide.id)
+        return {
+          ok: false,
+          error:
+            'This slide is the cover (layout title): it holds only the title and one subtitle line. Put these points in the speaker notes (update_slide notes) instead, then finish_turn.',
+        };
+      const placements = reflowLayout(slide, 'content');
+      const failed = commit('change_layout', [
+        { type: 'change_layout', slideId: slide.id, layout: 'content', placements },
+      ]);
+      if (failed) return failed;
+      slide = slideOf(slide.id);
+    }
     const id = newElementId();
     const placed = placeElement(
       slide,
       { ...partial, bbox: explicitBox(input) },
       input.slot,
-      { avoidOverlap: true }, // models guess coordinates; never stack on existing content (D41)
+      // Models guess coordinates: never stack on existing content (D41); while generating, keep
+      // content below the slide's title so slides read title first (D60).
+      { avoidOverlap: true, belowTitle: phase === 'populate' },
     );
     const { slot } = placed;
     // A table placed in a slot starts one row height per row, not the whole slot (D56).
@@ -443,10 +471,18 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
         if (!target) return noSlide(toSlideId);
         const { w, h } = hit.el.bbox;
         let bbox;
+        let roomOps = [];
         if (typeof x === 'number' && typeof y === 'number') bbox = { ...hit.el.bbox, x, y };
-        else if (target !== hit.slide)
-          bbox = findFreeSpot(target, { w, h }, { x: hit.el.bbox.x, y: hit.el.bbox.y });
-        else
+        else if (target !== hit.slide) {
+          // Same rules as a thumbnail drop: free spot, shrink, or make room (D61, D63).
+          const fit = fitOnSlide(target, [{ ...hit.el.bbox, w, h }]);
+          bbox = fit.boxes[0];
+          roomOps = fit.adjust.map((a) => ({
+            type: 'update_element',
+            elementId: a.id,
+            patch: { bbox: a.bbox },
+          }));
+        } else
           return {
             ok: false,
             error: 'Give x and y to move within the same slide, or a toSlideId.',
@@ -460,7 +496,7 @@ export function createDeckTools(ctx, { emit = () => {}, defaultSlideId } = {}) {
           ...(newId ? { newId } : {}),
         };
         return (
-          commit('move_element', [op]) ?? {
+          commit('move_element', [op, ...roomOps]) ?? {
             ok: true,
             elementId: newId ?? elementId,
             slideId: target.id,

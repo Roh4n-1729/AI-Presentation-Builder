@@ -59,13 +59,26 @@ export function searchFreeSpot(slide, size, near, ignoreId, minY = 0) {
   return null;
 }
 
+/** Sizes tried, in order, when looking for room on a slide (D31, D61). */
+export const FIT_SCALES = [1, 0.75, 0.5, 0.35];
+
 /**
- * Like searchFreeSpot, but never fails: if nothing is free, falls back to `near` (or the center),
- * clamped. Used for thumbnail drops and paste, where the element keeps its size.
+ * Like searchFreeSpot, but never fails. Used for thumbnail drops, paste and the AI's move to
+ * another slide. The element keeps its size if a free spot exists; otherwise it shrinks, keeping
+ * its proportions, to 75%, 50% and then 35% (D61); only if even that doesn't fit does it fall back
+ * to `near` (or the center) at full size, clamped, on top of what's there, as the brief asks
+ * ("clamp rather than fail").
  */
 export function findFreeSpot(slide, size, near, ignoreId) {
-  const spot = searchFreeSpot(slide, size, near, ignoreId);
-  if (spot) return spot;
+  for (const k of FIT_SCALES) {
+    const spot = searchFreeSpot(
+      slide,
+      { w: Math.round(size.w * k), h: Math.round(size.h * k) },
+      near,
+      ignoreId,
+    );
+    if (spot) return spot;
+  }
   const box = clampBBox({ x: 0, y: 0, ...size });
   const fallback = near ?? { x: (ARTBOARD_W - box.w) / 2, y: (ARTBOARD_H - box.h) / 2 };
   return clampBBox({ ...box, ...fallback });
@@ -91,14 +104,4 @@ export function shiftGroup(boxes, dx, dy) {
   const fx = Math.min(Math.max(u.x, 0), Math.max(0, ARTBOARD_W - u.w)) - u.x;
   const fy = Math.min(Math.max(u.y, 0), Math.max(0, ARTBOARD_H - u.h)) - u.y;
   return moved.map((b) => ({ ...b, x: Math.round(b.x + fx), y: Math.round(b.y + fy) }));
-}
-
-/**
- * Where a group dropped on a slide's thumbnail lands: the free spot (for the group's outline)
- * nearest its old position, every member keeping its offset within the group (D54).
- */
-export function groupToFreeSpot(slide, boxes) {
-  const u = unionBox(boxes);
-  const spot = findFreeSpot(slide, { w: u.w, h: u.h }, { x: u.x, y: u.y });
-  return shiftGroup(boxes, spot.x - u.x, spot.y - u.y);
 }

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getDeckState, useDeck, useDeckActions } from '@/hooks/useDeck.js';
 import { useInsert } from '@/hooks/useInsert.js';
+import { useFeedback } from '@/hooks/useFeedback.js';
 import { ARTBOARD_W } from '@/lib/constants.js';
 import { groupState } from '@/lib/groups.js';
 import { resolveColor } from '@/lib/theme/index.js';
@@ -162,6 +163,7 @@ function ChartControls({ el }) {
 function ImageControls({ el }) {
   const { patchElement } = useDeckActions();
   const { replaceImageFile } = useInsert();
+  const feedback = useFeedback();
   const fileRef = useRef(null);
   return (
     <ToolbarGroup>
@@ -200,7 +202,10 @@ function ImageControls({ el }) {
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
-          if (file) replaceImageFile(el.id, file).catch((err) => window.alert(err.message));
+          if (file)
+            replaceImageFile(el.id, file).catch((err) =>
+              feedback.error("Couldn't replace the image", err.message),
+            );
         }}
       />
     </ToolbarGroup>

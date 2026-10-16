@@ -43,6 +43,7 @@ export async function POST(request) {
     const applied = { count: 0 };
     const all = createDeckTools(ctx, {
       defaultSlideId: slideId,
+      phase: 'populate', // content stays below the title (D60)
       emit: ({ ops, toolName }) => {
         applied.count += ops.length;
         send('op', { ops, toolName, turnId, slideId });

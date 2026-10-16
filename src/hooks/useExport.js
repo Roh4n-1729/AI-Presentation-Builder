@@ -11,13 +11,21 @@ export function useExport() {
     setBusy(true);
     try {
       const { problems } = await exportPptx(appStore.getState().deck);
+      const s = appStore.getState();
       if (problems.length)
-        window.alert(
-          `Exported. ${problems.length} image(s) couldn't be embedded (the site doesn't allow it) and show as placeholders: ${problems.join(', ')}`,
-        );
+        s.toast({
+          kind: 'info',
+          title: 'Exported, with placeholders',
+          description: `${problems.length} image(s) couldn't be embedded (the site doesn't allow it) and show as placeholders.`,
+        });
+      else s.toast({ kind: 'success', title: 'PowerPoint file downloaded' });
     } catch (err) {
       console.error(err);
-      window.alert(`PowerPoint export failed: ${err?.message ?? err}`);
+      appStore.getState().toast({
+        kind: 'error',
+        title: 'PowerPoint export failed',
+        description: String(err?.message ?? err),
+      });
     } finally {
       setBusy(false);
     }

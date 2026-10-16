@@ -2,6 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useDeck } from '@/hooks/useDeck.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
+import { useFeedback } from '@/hooks/useFeedback.js';
 import { ARTBOARD_H, ARTBOARD_W } from '@/lib/constants.js';
 import { deckPath } from '@/lib/routes.js';
 import { getTheme } from '@/lib/theme/index.js';
@@ -47,6 +48,7 @@ export function RecentProjects() {
   const projects = useDeck((s) => s.recentProjects);
   const scheme = useDeck((s) => s.colorScheme);
   const { deleteProject } = useWorkspace();
+  const feedback = useFeedback();
   if (!projects.length) return null;
 
   return (
@@ -76,9 +78,17 @@ export function RecentProjects() {
               icon={Trash2}
               label="Delete presentation"
               className="absolute top-3 right-3 bg-panel/90 opacity-0 shadow-float group-hover:opacity-100 focus-visible:opacity-100"
-              onClick={() => {
-                if (window.confirm(`Delete "${p.title}"? This can't be undone.`))
-                  deleteProject(p.id);
+              onClick={async () => {
+                // Saved projects can't be undone (they're outside the deck history): ask first (D62).
+                const ok = await feedback.confirm({
+                  title: `Delete "${p.title}"?`,
+                  description: "It's removed from this browser for good. This can't be undone.",
+                  confirmLabel: 'Delete',
+                  destructive: true,
+                });
+                if (!ok) return;
+                await deleteProject(p.id);
+                feedback.toast({ kind: 'success', title: `Deleted "${p.title}"` });
               }}
             />
           </li>

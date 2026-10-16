@@ -215,6 +215,7 @@ This file records options I evaluated and deliberately did **not** implement, wh
 
 ### Slide transitions & build animations
 - **Why not:** out of scope ("an animation engine"). UI motion is limited to purposeful feedback, such as the AI-change glow and the AI move glide.
+- **Update:** simple slide transitions in Present mode (none / fade / push) were added later at Rohan's request ([D48](DECISIONS.md#d48-motion-tokens-speaker-notes-slide-transitions-ai-change-animation)). Build animations (elements appearing one by one) remain out of scope.
 
 ---
 

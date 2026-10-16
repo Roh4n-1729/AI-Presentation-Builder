@@ -1,6 +1,6 @@
 # CLAUDE.md — working notes for AI coding sessions
 
-AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D59), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
+AI Presentation Builder (take-home, 2-day hard deadline). Full rationale: `docs/DECISIONS.md` (D1–D68), rejected options: `docs/TRADEOFFS.md` (do not implement anything from it unless asked).
 
 ## Stack
 
@@ -68,11 +68,15 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - [x] Groups / multi-selections drag to other slides (frame or thumbnail, arrangement kept, Alt copies) (D54); 163 tests
 - [x] Table rows take their text height, box grows for added rows, text shrinks to fit; Next on the last slide ends Present (D55); 164 tests
 - [x] Tidy removed; click inside an ungrouped multi-selection selects just that element; tables fill their box, start at one row height per row, min 44 units a row (D56); 164 tests
-- [ ] Deploy with keys + reviewer script on the live URL
-- [ ] README (reviewer path, DnD explanation, architecture, Sarvam results, known gaps)
+- [x] Deployed with keys: https://ai-presentation-builder-eosin.vercel.app/ (working, per Rohan)
+- [ ] Reviewer script (the brief's 7 steps) on the live URL
+- [x] README (reviewer quick path + GIF, setup, architecture, DnD, agent + Sarvam results, design system, known gaps); ARCHITECTURE.md sections; drops shrink 75/50/35% before overlapping (D61); 193 tests
 - [x] Stock photos for AI images: Openverse → Wikimedia Commons → placeholder, keyless, CC0/PD/CC BY, credits in toolbar + PPTX notes, long queries shortened, `[photos]` console log (D57); 180 tests
 - [x] Image descriptions: each picture described once by Gemini (`/api/describe`), stored with a src fingerprint, sent as text; `dispatch(..., { record: false })` (D58); 188 tests
 - [x] React Router 8 owns navigation; `services/router.js` removed; workspace start functions return the deck id; generate keeps the project id (D59); 189 tests
+- [x] Reading order: prompt rule (title → subtitle → main → supporting) + generation guard `placeElement(..., { belowTitle })` (D60); 192 tests
+- [x] Toasts (Undo on deletions) + in-app confirm/prompt modal replace window.alert/confirm/prompt (D62); full slides make room on drops / AI moves (`fitOnSlide`, D63); 197 tests
+- [x] No content above the title on any layout; cover refuses content while generating, later title/section slides switch to content (D64); planning view with themed skeletons (D65); 200 tests
 - [ ] Check stock photos on the live URL (CORS of image hosts, real limits)
 
 ## Where things are
@@ -94,10 +98,12 @@ Every deck change is an op → `dispatch(op)` → `applyOp(deck, op)` (pure, `sr
 - Export: `src/lib/export/pptx.js` (pure model + writer), `src/services/pptxExport.js` (fit, images, download, deck json), `features/present/{PrintView,PresentMode}.jsx`, `features/topbar/{ExportMenu,ThemeMenu}.jsx`; box select `features/canvas/useMarquee.js`
 - Motion: never a raw duration/easing. Tailwind `duration-fast|base|move|emphasis` + `ease-standard|enter|exit`, CSS `var(--motion-*)`, JS `motion()` from `hooks/motion.js`; `tests/motion-tokens.test.js` enforces it
 - AI change animation: `features/canvas/useAiMotion.js`; speaker notes: `features/canvas/SlideNotes.jsx`; Present split button: `features/topbar/PresentButton.jsx`; panels: `features/sidepanel/PanelSlot.jsx`
-- Routing (D59): React Router, routes in `src/router.jsx`, route components in `src/screens/routes.jsx` (`StartRoute`, `DeckRoute`, `PresentRoute`), paths from `lib/routes.js` (`deckPath`, `presentPath`). The URL decides the screen: navigate with `useNavigate` / `<Link>` (or `useWorkspace`, `usePresentNavigation`), never `history.*`. `ui.presenting` mirrors the present route for non-component code; don't set it directly
+- Routing (D59): React Router, routes in `src/router.jsx`, route components in `src/screens/routes.jsx` (`StartRoute`, `DeckRoute`, `PresentRoute`), paths from `lib/routes.js` (`deckPath`, `presentPath`). The URL decides the screen: navigate with `useNavigate` / `<Link>` (or `useWorkspace`, `usePresentNavigation`), never `history.*`. `ui.presenting` mirrors the present route for non-component code; don't set it directly. Never put one-off side effects (fullscreen, navigation) in effect cleanups: StrictMode runs them right after mount (D67)
 - Clipboard: `lib/clipboard.js` (payload, paste ops) + `hooks/useClipboard.js` (copy/cut/paste events); groups `lib/groups.js` (selection always completes groups); grids `lib/tabular.js`; crop `lib/crop.js` + `features/drawer/ImageCropEditor.jsx`
 - Image descriptions: `lib/imageInfo.js` (`srcFingerprint`, `currentDescription`) + `services/captions.js` (`startCaptioner`) + `api/describe.js` (`visionModel()` in `api/_lib/providers.js`)
 - Stock photos: `lib/photos.js` (URLs, parsing, licence filter, pick, budget) + `services/photos.js` (`searchPhoto`, `loadPhoto`, `startPhotoFiller`, started in `bootWorkspace`)
+- Feedback (D62): `useFeedback()` → `toast`, `error`, `confirm`, `prompt` (UI slice `toasts`, `dialog`; `features/feedback/{Toaster,AppDialog}.jsx`). Never `window.alert/confirm/prompt`. Keep Radix modal roots mounted and close them via `open` (D66)
+- Placement without a drop point: `fitOnSlide` (`lib/layout/room.js`: free spot → shrink → make room → on top) (D63)
 - Menus: one row component `primitives/MenuItem.jsx` (icon, label, `Kbd` shortcut); never a native `<select>`
 - Right panel shell: `features/sidepanel/SidePanel.jsx` (`SidePanel`, `ExpandPanelButton`; width `ui.sideWidth`, limits `SIDE_WIDTH` in `lib/constants.js`)
 - Print uses CSS `zoom`, never a transform (Chromium PDF drops SVG charts in scaled transforms)

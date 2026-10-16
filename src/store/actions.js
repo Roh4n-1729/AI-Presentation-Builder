@@ -17,13 +17,55 @@ import { tableBoxAt } from '../lib/tabular.js';
  */
 
 /** @param {ReturnType<import('./index.js').createAppStore>} store */
-export function deleteSelection(store) {
-  const { selection, dispatch } = store.getState();
+/**
+ * A "Deleted …" toast with Undo (D62). Undo reverts the deletion only while it is still the
+ * newest history entry; after newer changes it says so instead of undoing something else.
+ */
+function deletedToast(store, res, title) {
+  if (!res?.ok || !res.historyEntryId) return;
+  store.getState().toast({
+    kind: 'success',
+    title,
+    action: {
+      label: 'Undo',
+      onAction: () => {
+        const s = store.getState();
+        if (s.past.at(-1)?.id === res.historyEntryId && s.undo()) return;
+        s.toast({
+          kind: 'info',
+          title: "Can't undo from here",
+          description: 'Newer changes came after it. Use Ctrl+Z to step back through them.',
+        });
+      },
+    },
+  });
+}
+
+const KIND_NAMES = {
+  text: 'text box',
+  image: 'image',
+  chart: 'chart',
+  table: 'table',
+  shape: 'shape',
+};
+
+/** Delete the selection. `quiet` skips the toast (cut, which says nothing either). */
+export function deleteSelection(store, { quiet = false } = {}) {
+  const { selection, deck, dispatch } = store.getState();
   if (!selection.length) return null;
-  return dispatch(
+  const n = selection.length;
+  const one = n === 1 ? findElement(deck, selection[0])?.el : null;
+  const res = dispatch(
     selection.map((id) => ({ type: 'delete_element', elementId: id })),
-    { label: selection.length > 1 ? `Delete ${selection.length} elements` : 'Delete element' },
+    { label: n > 1 ? `Delete ${n} elements` : 'Delete element' },
   );
+  if (!quiet)
+    deletedToast(
+      store,
+      res,
+      one ? `Deleted ${KIND_NAMES[one.type] ?? 'element'}` : `Deleted ${n} elements`,
+    );
+  return res;
 }
 
 export function duplicateSelection(store) {
@@ -122,7 +164,11 @@ export function duplicateSlide(store, slideId) {
 }
 
 export function deleteSlide(store, slideId) {
-  return store.getState().dispatch({ type: 'delete_slide', slideId }, { label: 'Delete slide' });
+  const { deck, dispatch } = store.getState();
+  const title = deck.slides[slideId]?.title;
+  const res = dispatch({ type: 'delete_slide', slideId }, { label: 'Delete slide' });
+  deletedToast(store, res, title ? `Deleted slide "${title}"` : 'Deleted slide');
+  return res;
 }
 
 /**

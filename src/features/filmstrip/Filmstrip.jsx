@@ -21,6 +21,7 @@ import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { getTheme } from '@/lib/theme/index.js';
 import { Button } from '@/primitives/ui/button.jsx';
 import { motion } from '@/hooks/motion.js';
+import { SkeletonSlide } from '@/features/canvas/PlanningPlaceholder.jsx';
 import { ThumbPreview, Thumbnail } from './Thumbnail.jsx';
 
 export const FILMSTRIP_W = 244;
@@ -84,7 +85,9 @@ export function Filmstrip() {
           <ArrowLeft strokeWidth={1.75} /> All presentations
         </Button>
         <span className="ml-auto pr-1 text-label text-faint tabular-nums">
-          {slideOrder.length} slide{slideOrder.length === 1 ? '' : 's'}
+          {slideOrder.length === 0 && aiBusy
+            ? 'Planning…'
+            : `${slideOrder.length} slide${slideOrder.length === 1 ? '' : 's'}`}
         </span>
       </div>
       {/* Never scrolls sideways; the gutter keeps room for the scrollbar so it can't push the
@@ -101,6 +104,22 @@ export function Filmstrip() {
             moveSlideToIndex(active.id, getDeckState().deck.slideOrder.indexOf(over.id));
           }}
         >
+          {slideOrder.length === 0 && aiBusy && (
+            // While the outline is being planned: skeleton thumbnails like the canvas (D65).
+            <div className="flex flex-col gap-4 pl-7" aria-hidden>
+              {[0, 1, 2].map((i) => (
+                <SkeletonSlide
+                  key={i}
+                  shape={i}
+                  theme={theme}
+                  width={176}
+                  height={99}
+                  delay={i}
+                  className="animate-in border duration-emphasis ease-enter fade-in-0"
+                />
+              ))}
+            </div>
+          )}
           <SortableContext items={slideOrder} strategy={verticalListSortingStrategy}>
             {slideOrder.map((id, i) => (
               <SortableThumbnail key={id} slideId={id} index={i} theme={theme} />

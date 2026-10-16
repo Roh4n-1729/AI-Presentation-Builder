@@ -138,3 +138,30 @@
     scale: 0.96;
   }
 }
+
+/* Planning skeletons (D65): a slow saffron sheen across skeleton slides and thumbnails,
+   staggered per slide. Stopped for reduced motion. */
+.plan-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--ai) 14%, transparent) 50%,
+    transparent 80%
+  );
+  animation: plan-sheen var(--motion-highlight-ai) var(--motion-ease-standard) infinite;
+  animation-delay: calc(var(--plan-delay, 0) * var(--motion-base));
+}
+@keyframes plan-sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-skeleton::after {
+    animation: none;
+  }
+}

@@ -1,4 +1,5 @@
 import { clampBBox, findFreeSpot, overlaps, searchFreeSpot } from './geometry.js';
+import { ARTBOARD_H, SAFE_MARGIN } from '../constants.js';
 import { CONTENT_TOP, DEFAULT_SIZES, LAYOUT_DEFS } from './layouts.js';
 
 /** Text elements are placed by role, everything else by type. */
@@ -13,6 +14,22 @@ const occupiedSlots = (slide, ignoreId) =>
   );
 
 const NO_TITLE_BAND = new Set(['blank', 'title', 'section']);
+
+/**
+ * The lowest point content may start at so it reads after the slide's title (D60): the title
+ * box's bottom plus a gap, or 0 when the slide has no title or the element is the title itself.
+ */
+/** Lowest start for auto-placed content: the layout's content top and below the title (D64). */
+const floorFor = (slide, element) =>
+  Math.max(minYFor(slide, kindOf(element)), titleFloor(slide, element));
+
+export function titleFloor(slide, element) {
+  if (element.type === 'text' && element.role === 'title') return 0;
+  const title = slide.elementOrder
+    .map((id) => slide.elements[id])
+    .find((el) => el.type === 'text' && el.role === 'title');
+  return title ? title.bbox.y + title.bbox.h + GAP : 0;
+}
 /** Auto-placed non-title content never goes into the title band (above the content area). */
 export const minYFor = (slide, kind) =>
   kind === 'title' || NO_TITLE_BAND.has(slide.layout) ? 0 : CONTENT_TOP;
@@ -59,17 +76,37 @@ export function freePartOfSlot(slide, box, ignoreId) {
  * @param {import('../schema/deck.js').Slide} slide  slide the element will be added to
  * @param {{ type: string, role?: string, bbox?: import('../schema/elements.js').BBox }} element
  * @param {string} [preferredSlot]
- * @param {{ avoidOverlap?: boolean }} [opts]  move colliding explicit boxes (AI tools set this)
+ * @param {{ avoidOverlap?: boolean, belowTitle?: boolean }} [opts]  avoidOverlap: move colliding
+ *   explicit boxes (AI tools set this); belowTitle: an explicit non-title box may not start above
+ *   the bottom of the slide's title (generation sets this, D60)
  * @returns {{ bbox: import('../schema/elements.js').BBox, slot?: string }}
  */
-export function placeElement(slide, element, preferredSlot, { avoidOverlap = false } = {}) {
+export function placeElement(
+  slide,
+  element,
+  preferredSlot,
+  { avoidOverlap = false, belowTitle = false } = {},
+) {
   if (element.bbox && !preferredSlot) {
-    const box = clampBBox(element.bbox);
+    let box = clampBBox(element.bbox);
+    const floor = belowTitle ? titleFloor(slide, element) : 0;
+    if (box.y < floor) {
+      // Reading order (D60): content reads after the title, so it starts below it. Keep the size
+      // and x; if that runs off the slide, look for the nearest free spot below the title.
+      const moved = clampBBox({ ...box, y: floor });
+      if (moved.y >= floor) box = moved;
+      else {
+        const spot = searchFreeSpot(slide, box, { x: box.x, y: floor }, undefined, floor);
+        if (spot) return { bbox: spot };
+        // No room at full size: take the space between the title and the bottom margin.
+        box = clampBBox({ ...box, y: floor, h: ARTBOARD_H - SAFE_MARGIN - floor });
+      }
+    }
     const others = slide.elementOrder.map((id) => slide.elements[id].bbox);
     // AI-supplied coordinates that collide with existing content: keep the size, move it to the
     // nearest free spot (or fall through to slots). A person's explicit placement is kept as is.
     if (!avoidOverlap || !others.some((o) => overlaps(o, box))) return { bbox: box };
-    const spot = searchFreeSpot(slide, box, box, undefined, minYFor(slide, kindOf(element)));
+    const spot = searchFreeSpot(slide, box, box, undefined, floorFor(slide, element));
     if (spot) return { bbox: spot };
   }
 
@@ -85,7 +122,8 @@ export function placeElement(slide, element, preferredSlot, { avoidOverlap = fal
 
   const size = element.bbox ?? DEFAULT_SIZES[kind] ?? DEFAULT_SIZES.body;
   const near = element.bbox ? { x: element.bbox.x, y: element.bbox.y } : undefined;
-  const minY = minYFor(slide, kind);
+  // Auto-placed content never goes above the title (D64), whatever the layout.
+  const minY = floorFor(slide, element);
   for (const f of [1, 0.75, 0.5]) {
     const spot = searchFreeSpot(slide, { w: size.w * f, h: size.h * f }, near, undefined, minY);
     if (spot) return { bbox: spot };

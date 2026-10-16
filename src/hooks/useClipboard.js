@@ -43,7 +43,7 @@ function copySelection(e, cut) {
   lastCopy = { json, text };
   // Cut = copy + delete, one undo step for the delete. Locked elements are copied but stay
   // (the delete is refused and the usual error toast says why).
-  if (cut) actions.deleteSelection(appStore);
+  if (cut) actions.deleteSelection(appStore, { quiet: true });
 }
 
 /** Elements copied here → new copies on the slide in view, selected. */

@@ -185,3 +185,59 @@ describe('slots never stack on existing content (D41)', () => {
     expect(overlaps(ai.bbox, slide.elements.el_a.bbox)).toBe(false);
   });
 });
+
+describe('reading order during generation (D60)', () => {
+  const withTitle = () => {
+    const slide = createSlide({ id: 's_order', title: 'T', layout: 'blank' });
+    slide.elements.el_t = text('el_t', { role: 'title', bbox: { x: 96, y: 60, w: 1728, h: 140 } });
+    slide.elementOrder.push('el_t');
+    return slide;
+  };
+
+  it('moves an AI box that starts above the title to just below it', () => {
+    const slide = withTitle();
+    const el = { type: 'text', role: 'body', bbox: { x: 96, y: 20, w: 800, h: 300 } };
+    const { bbox } = placeElement(slide, el, undefined, { avoidOverlap: true, belowTitle: true });
+    expect(bbox.y).toBe(60 + 140 + 24);
+    expect(bbox).toMatchObject({ x: 96, w: 800, h: 300 });
+    // Without the option (edits, a person's placement) the box is kept where it was asked.
+    const free = placeElement(withTitle(), { ...el, bbox: { x: 96, y: 300, w: 800, h: 300 } });
+    expect(free.bbox.y).toBe(300);
+  });
+
+  it('shrinks a box too tall to fit below the title instead of covering it', () => {
+    const slide = withTitle();
+    const el = { type: 'chart', bbox: { x: 96, y: 0, w: 1700, h: 1000 } };
+    const { bbox } = placeElement(slide, el, undefined, { avoidOverlap: true, belowTitle: true });
+    expect(bbox.y).toBeGreaterThanOrEqual(224);
+    expect(bbox.y + bbox.h).toBeLessThanOrEqual(ARTBOARD_H - SAFE_MARGIN);
+  });
+
+  it('leaves the title itself, and slides without a title, alone', () => {
+    const slide = withTitle();
+    const title = { type: 'text', role: 'title', bbox: { x: 96, y: 20, w: 800, h: 100 } };
+    expect(placeElement(slide, title, undefined, { belowTitle: true }).bbox.y).toBe(20);
+    const empty = createSlide({ id: 's_none', title: 'T', layout: 'blank' });
+    const el = { type: 'text', role: 'body', bbox: { x: 96, y: 20, w: 800, h: 300 } };
+    expect(placeElement(empty, el, undefined, { belowTitle: true }).bbox.y).toBe(20);
+  });
+});
+
+describe('findFreeSpot shrink ladder (D61)', () => {
+  it('shrinks, keeping proportions, before landing on top of content', () => {
+    const slide = createSlide({ id: 's_full', title: 'T', layout: 'blank' });
+    // Leaves a 700 x 400 free band at the bottom.
+    slide.elements.el_a = text('el_a', { bbox: { x: 40, y: 40, w: 1840, h: 600 } });
+    slide.elementOrder.push('el_a');
+    const spot = findFreeSpot(slide, { w: 1100, h: 740 }, { x: 96, y: 250 });
+    expect(spot.w / spot.h).toBeCloseTo(1100 / 740, 1);
+    expect(spot.w).toBeLessThan(1100);
+    expect(overlaps(spot, slide.elements.el_a.bbox)).toBe(false);
+    // A slide with no room at any size: full size, clamped, on top (never fails).
+    slide.elements.el_a.bbox = { x: 0, y: 0, w: 1920, h: 1080 };
+    expect(findFreeSpot(slide, { w: 1100, h: 740 }, { x: 96, y: 250 })).toMatchObject({
+      w: 1100,
+      h: 740,
+    });
+  });
+});

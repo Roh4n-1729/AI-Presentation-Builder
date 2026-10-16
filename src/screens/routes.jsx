@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect } from 'react';
-import { Navigate, Outlet, useParams } from 'react-router';
+import { useEffect, useLayoutEffect, useRef } from 'react';
+import { Navigate, Outlet, useMatch, useParams } from 'react-router';
 import { PresentMode } from '@/features/present/PresentMode.jsx';
 import { getDeckState, useDeck } from '@/hooks/useDeck.js';
 import { useCloseProjectOnMount, useProjectRoute } from '@/hooks/useWorkspace.js';
@@ -24,10 +24,26 @@ export function StartRoute() {
   return ready ? <StartScreen /> : <Busy />;
 }
 
+/**
+ * Leaving Present by any path (Esc, the X, the last slide, Back) ends fullscreen (D67). Watched
+ * from DeckRoute, which stays mounted, as a change of the URL from a Present URL to one that
+ * isn't, so React's StrictMode double effects can't end a presentation that just began.
+ */
+function useExitFullscreenWhenPresentEnds() {
+  const presentingUrl = Boolean(useMatch('/deck/:deckId/present/:slide'));
+  const was = useRef(presentingUrl);
+  useEffect(() => {
+    if (was.current && !presentingUrl && document.fullscreenElement)
+      document.exitFullscreen?.().catch(() => {});
+    was.current = presentingUrl;
+  }, [presentingUrl]);
+}
+
 /** `/deck/:deckId`: the editor for that project; an unknown or evicted project goes home. */
 export function DeckRoute() {
   const { deckId } = useParams();
   const status = useProjectRoute(deckId);
+  useExitFullscreenWhenPresentEnds();
   const title = useDeck((s) => s.deck.title);
   useEffect(() => {
     if (status === 'ready') document.title = titleFor(title);
@@ -52,16 +68,13 @@ export function PresentRoute() {
   const count = useDeck((s) => s.deck.slideOrder.length);
   const index = slideIndexFrom(slide, count);
   useLayoutEffect(() => {
-    if (index !== null) getDeckState().setPresenting({ index });
+    if (index === null) return undefined;
+    getDeckState().setPresenting({ index });
+    // Only the store mirror is cleared here. Fullscreen is left by DeckRoute when the URL stops
+    // being a Present URL (D67): StrictMode runs this cleanup once right after mounting, and
+    // exiting fullscreen here ended the presentation as soon as it started.
+    return () => getDeckState().setPresenting(null);
   }, [index]);
-  useLayoutEffect(
-    () => () => {
-      // Leaving the route by any path (Esc, the X, Back): no Present state or fullscreen left behind.
-      getDeckState().setPresenting(null);
-      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    },
-    [],
-  );
   if (index === null) return <Navigate to={deckPath(deckId)} replace />;
   return <PresentMode index={index} />;
 }

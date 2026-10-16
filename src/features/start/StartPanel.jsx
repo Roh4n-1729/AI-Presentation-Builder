@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { ArrowUp, ChevronDown, FilePlus2, FolderOpen, LayoutTemplate } from 'lucide-react';
 import { useAi } from '@/hooks/useAi.js';
+import { useFeedback } from '@/hooks/useFeedback.js';
 import { useWorkspace } from '@/hooks/useWorkspace.js';
 import { cn } from '@/primitives/cn.js';
 import { Button } from '@/primitives/ui/button.jsx';
@@ -46,6 +47,7 @@ export function StartPanel() {
   const ai = useAi();
   const { startBlank, startFromSample, prepareForGeneration, importDeckFile } = useWorkspace();
   const fileRef = useRef(null);
+  const feedback = useFeedback();
   const [prompt, setPrompt] = useState('');
   const [count, setCount] = useState('auto');
   const taRef = useRef(null);
@@ -164,7 +166,7 @@ export function StartPanel() {
               e.target.value = '';
               if (!file) return;
               const res = await importDeckFile(file);
-              if (!res.ok) window.alert(res.message);
+              if (!res.ok) feedback.error("Couldn't open that deck file", res.message);
             }}
           />
         </div>

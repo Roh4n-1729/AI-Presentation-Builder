@@ -78,6 +78,9 @@ function defaultModel(opts) {
   const names = toolNames(opts);
   if (names.includes('plan_deck')) return toolCall('plan_deck', PLAN);
   if (afterToolResult(opts)) return toolCall('finish_turn', { summary: 'Done.' });
+  // Like a well-behaved model: the cover gets a subtitle, content slides get bullets (D64).
+  if (JSON.stringify(opts.prompt).includes('(layout title,'))
+    return toolCall('add_text', { role: 'subtitle', paragraphs: ['Turning waste into soil'] });
   return toolCall('add_text', { role: 'body', paragraphs: ['Point one', 'Point two'] });
 }
 
@@ -97,7 +100,7 @@ describe('generate -> edit through the real endpoints (mock model)', () => {
     expect(s.deck.slideOrder.map((id) => s.deck.slides[id].title)).toEqual(
       PLAN.slides.map((p) => p.title),
     );
-    // every slide: its title element plus one body text box from populate
+    // every slide: its title element plus one text box from populate (subtitle on the cover)
     for (const id of s.deck.slideOrder) expect(s.deck.slides[id].elementOrder).toHaveLength(2);
     expect(calls.filter((u) => u === '/api/populate')).toHaveLength(3);
 
@@ -128,6 +131,49 @@ describe('generate -> edit through the real endpoints (mock model)', () => {
 
     s.undo();
     expect(store.getState().deck).toEqual(before);
+  });
+
+  it("sees a chart the user dragged to another slide, and edits it there (brief's step 5)", async () => {
+    // The user drags the chart from slide 3 onto slide 5 (what a thumbnail drop dispatches).
+    const order = store.getState().deck.slideOrder;
+    const [from, to] = [order[2], order[4]];
+    store.getState().dispatch(
+      {
+        type: 'move_element',
+        elementId: 'el_rev_chart',
+        toSlideId: to,
+        bbox: { x: 980, y: 600, w: 700, h: 400 },
+      },
+      { label: 'Move element to slide' },
+    );
+
+    let context = '';
+    script.current = (opts) => {
+      if (!context) context = JSON.stringify(opts.prompt);
+      return afterToolResult(opts)
+        ? toolCall('finish_turn', { summary: 'The chart is on slide 5; it is a line chart now.' })
+        : toolCall('change_chart_type', { elementId: 'el_rev_chart', kind: 'line' });
+    };
+    await ai.runEdit(store, 'Which slide is the chart on? Make it a line chart.');
+
+    // What the model was given: the chart listed under slide 5 (with its new box), not slide 3.
+    const lines = JSON.parse(context)
+      .map((m) =>
+        Array.isArray(m.content) ? m.content.map((c) => c.text ?? '').join('') : m.content,
+      )
+      .join('\n')
+      .split('\n');
+    const slideLine = (id) => lines.findIndex((l) => l.includes(`] ${id} `));
+    const chartLine = lines.findIndex((l) => l.includes('el_rev_chart chart (980,600 700x400)'));
+    expect(chartLine).toBeGreaterThan(slideLine(to));
+    const nextSlide = lines.findIndex((l, i) => i > slideLine(to) && /^\[\d+\] /.test(l));
+    expect(nextSlide === -1 || chartLine < nextSlide).toBe(true);
+    expect(chartLine > slideLine(from) && chartLine < slideLine(order[3])).toBe(false);
+
+    // The model's edit landed on the chart where it now lives.
+    const deck = store.getState().deck;
+    expect(deck.slides[to].elements.el_rev_chart.chart.kind).toBe('line');
+    expect(deck.slides[from].elements.el_rev_chart).toBeUndefined();
   });
 
   it('a provider error before any op shows a retryable error on the message', async () => {

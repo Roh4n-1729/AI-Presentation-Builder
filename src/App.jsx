@@ -1,4 +1,6 @@
 import { RouterProvider } from 'react-router';
+import { AppDialog } from './features/feedback/AppDialog.jsx';
+import { Toaster } from './features/feedback/Toaster.jsx';
 import { useChromePrefs } from './hooks/useColorScheme.js';
 import { useWorkspaceBoot } from './hooks/useWorkspace.js';
 import { TooltipProvider } from './primitives/ui/tooltip.jsx';
@@ -10,6 +12,9 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <RouterProvider router={router} />
+      {/* Toasts and the confirm / prompt modal (D62), shared by every screen. */}
+      <Toaster />
+      <AppDialog />
     </TooltipProvider>
   );
 }

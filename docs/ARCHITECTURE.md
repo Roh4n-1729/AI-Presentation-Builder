@@ -1,6 +1,6 @@
 # Architecture
 
-> First version (day 1). Diagrams for the agent flow and export are added as those parts land.
+> How the app is put together. The why behind each part is in [DECISIONS.md](DECISIONS.md) (D1–D63); options not taken are in [TRADEOFFS.md](TRADEOFFS.md).
 
 ## The one invariant
 
@@ -51,8 +51,8 @@ flowchart TD
 | `src/hooks`      | React glue: selector hooks, actions, gestures                                | `services`, `store`, `lib`              |
 | `src/primitives` | dumb UI blocks and shadcn components                                         | —                                       |
 | `src/features`   | domain components (canvas, filmstrip, chat, drawer…)                         | `hooks`, `primitives`                   |
-| `src/screens`    | route-level assembly                                                         | `features`                              |
-| `api/`           | `plan`, `populate`, `agent` functions                                        | `src/lib` only (enforced by ESLint)     |
+| `src/screens`    | route components (`StartRoute`, `DeckRoute`, `PresentRoute`) and screens     | `features`, `hooks`                     |
+| `api/`           | `plan`, `populate`, `agent`, `describe` functions                            | `src/lib` only (enforced by ESLint)     |
 
 ## Coordinates
 
@@ -84,7 +84,80 @@ Tools live in `src/lib/agent/tools.js`. Each resolves its flat input into ops, a
 3. The client queues `op` events and dispatches them once per animation frame (source `ai`, the turn's id), so the whole turn is one undo entry. Each tool's ops become a chip on the chat message.
 4. Stop aborts the fetch; the abort reaches the model call. Ops already applied stay.
 
-## Sections to come
+## Drag-and-drop and cross-slide moves
 
-- Drag-and-drop and cross-slide hit-testing
-- Export pipeline
+```mermaid
+sequenceDiagram
+  participant U as Pointer
+  participant M as react-moveable
+  participant H as Hit-test (elementsFromPoint)
+  participant S as Store (dispatch)
+  U->>M: drag / resize
+  M->>M: inline transform only (no store writes)
+  M->>H: pointer position each move
+  H-->>U: drop ring + "Move to slide N" badge (store: dropTarget)
+  alt Esc
+    M->>M: restore inline styles, write nothing
+  else release on same slide
+    M->>S: move_element { bbox }
+  else release on another slide frame
+    M->>S: move_element { toSlideId, bbox in that slide's units }
+  else release on a thumbnail
+    M->>S: move_element { toSlideId, fitOnSlide: free spot, shrink 75/50/35%, or make room } + trims
+  end
+  Note over S: one op = one undo step; Alt adds newId (copy); groups shift as one piece
+```
+
+- **Coordinates:** boxes are stored in artboard units; each slide frame is the artboard CSS-scaled by `scale`, so a screen delta ÷ `scale` = artboard units. A frame drop converts the element's screen rect into the target artboard's units.
+- **Hit-testing:** `document.elementsFromPoint` at the pointer, first `[data-slide-drop]` (filmstrip thumbnail) or `[data-slide-frame]` (another slide in the column) that isn't the source slide. Drag state (`draggingSlideId`, `dropTarget`) lives in the store, never in `classList`, so re-renders can't wipe it.
+- **Scrolling:** Moveable `scrollable` with the slide column as the container; near the edge the column scrolls and a replayed pointer event keeps the element under a still cursor ([D34](DECISIONS.md#d34-dragging-across-a-scrolling-column-drop-ring-undo-reveal)).
+- **Multi-selection:** one group drag; a click without movement inside an ungrouped multi-selection selects the element under the pointer ([D56](DECISIONS.md#d56-tidy-removed-click-inside-a-multi-selection-table-height)).
+- **Filmstrip reorder:** dnd-kit sortable; the drop index becomes `reorder_slides { slideId, afterSlideId }`.
+
+## Generation and edits
+
+```mermaid
+sequenceDiagram
+  participant B as Browser (services/ai.js)
+  participant P as /api/plan
+  participant F as /api/populate (×2 in parallel)
+  participant A as /api/agent
+  B->>P: prompt, slide count
+  P-->>B: SSE op: update_deck + add_slide × N (titled skeletons), briefs
+  loop each slide
+    B->>F: deck snapshot (no image data) + brief
+    F-->>B: SSE op events (add_text / add_chart / add_table / add_image, notes), done
+  end
+  B->>A: later: message + deck snapshot + selection + recent chat
+  A-->>B: SSE op events (patches only), finish_turn summary + suggestions
+```
+
+The provider chain (`api/_lib/providers.js`, `runTurn.js`) tries Sarvam, then Gemini, then Groq, and only falls back while no op has been emitted. A run must finish its job (`isComplete`: a plan arrived, or ops landed) or it counts as a failure ([D38](DECISIONS.md#d38-a-run-must-finish-its-job-plan-retries-7-character-ids)).
+
+## Images
+
+```mermaid
+flowchart LR
+  T["add_image tool (query, alt)"] --> PH[Placeholder element]
+  PH --> PF["services/photos.js: Openverse → Wikimedia → keep placeholder"]
+  PF -->|"≤1600 px data URL + credit"| ST[(Deck store)]
+  UP[Upload / paste / URL] --> ST
+  ST --> CP["services/captions.js: ≤768 px JPEG, once per picture"]
+  CP --> DS["/api/describe (Gemini)"]
+  DS -->|"description { text, of: fingerprint }"| ST
+  ST --> RQ["toRequestDeck: src → img:id, description as text"]
+  RQ --> AG[Chat requests]
+```
+
+Photos and descriptions run in the browser, one at a time, with per-browser budgets for the photo services ([D57](DECISIONS.md#d57-stock-photos-from-openverse-with-wikimedia-commons-as-fallback), [D58](DECISIONS.md#d58-images-described-once-by-a-vision-model)). Descriptions are stored without an undo step (`dispatch(..., { record: false })`).
+
+## Export
+
+- **PowerPoint:** `lib/export/pptx.js` maps the deck to pptxgenjs calls (pure, tested in Node): 144 units = 1 in, native charts and tables, text re-measured in the browser with the export fonts (Cambria, Arial) so it fits, images framed and cropped as on the canvas, stock-photo credits in the speaker notes. `services/pptxExport.js` loads pptxgenjs on demand and downloads the file ([D44](DECISIONS.md#d44-export-print-present-box-select-themes-deck-files)).
+- **PDF:** a print view of the same `SlideRenderer`, one slide per page, scaled with CSS `zoom` (Chromium drops SVG charts inside scaled transforms when printing).
+- **Deck file:** the deck JSON, validated with the same schema on import.
+
+## Persistence and routing
+
+- **IndexedDB** through `services/kvStore.js` (idb-keyval in the browser, a Map in tests): up to 5 projects (deck + chat), autosaved after changes; the start screen lists them ([D39](DECISIONS.md#d39-persistence-and-the-startscreen-as-built), [D52](DECISIONS.md#d52-persistence-behind-a-four-method-store-tests-use-memory-not-fake-indexeddb)).
+- **React Router** decides what is on screen: `/` (start), `/deck/:deckId` (editor; loads the project unless it's open), `/deck/:deckId/present/:slide` (Present, a child route). Workspace actions return deck ids and the hooks navigate; nothing writes `history` by hand ([D59](DECISIONS.md#d59-react-router-owns-navigation)).

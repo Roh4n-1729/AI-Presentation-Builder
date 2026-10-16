@@ -276,3 +276,104 @@ describe('image query changes (D57)', () => {
     expect(buildElementPatch(deck, { elementId: 'el_img', query: 'desk' }).error).toBeDefined();
   });
 });
+
+describe('move_element onto a full slide (D63)', () => {
+  it('makes room on the target instead of covering its content, in one tool call', () => {
+    const { ctx, emitted, tools } = setup(createSampleDeck());
+    const [, s2, s3] = ctx.deck.slideOrder;
+    const r = tools.move_element.execute({ elementId: 'el_rev_chart', toSlideId: s2 });
+    expect(r.ok).toBe(true);
+    const ops = emitted.at(-1).ops;
+    expect(ops[0]).toMatchObject({ type: 'move_element', toSlideId: s2 });
+    expect(ops.slice(1).every((o) => o.type === 'update_element' && o.patch.bbox)).toBe(true);
+    const target = ctx.deck.slides[s2];
+    const moved = target.elements.el_rev_chart.bbox;
+    for (const id of target.elementOrder)
+      if (id !== 'el_rev_chart') {
+        const b = target.elements[id].bbox;
+        const hit =
+          moved.x < b.x + b.w &&
+          moved.x + moved.w > b.x &&
+          moved.y < b.y + b.h &&
+          moved.y + moved.h > b.y;
+        expect(hit).toBe(false);
+      }
+    expect(ctx.deck.slides[s3].elements.el_rev_chart).toBeUndefined();
+  });
+});
+
+describe('cover-style slides while generating (D64)', () => {
+  const deckWithCovers = () => {
+    const deck = createDeck({ id: 'd_cov', title: 'AI growth' });
+    const mk = (id, layout, title, ty) => {
+      const s = {
+        id,
+        title,
+        layout,
+        background: { color: 'bg' },
+        notes: '',
+        elementOrder: ['el_t' + id, 'el_s' + id],
+        elements: {
+          ['el_t' + id]: {
+            id: 'el_t' + id,
+            type: 'text',
+            role: 'title',
+            slot: 'title',
+            bbox: { x: 160, y: ty, w: 1600, h: 200 },
+            paragraphs: [{ text: title }],
+            style: {},
+          },
+          ['el_s' + id]: {
+            id: 'el_s' + id,
+            type: 'text',
+            role: 'subtitle',
+            slot: 'subtitle',
+            bbox: { x: 160, y: ty + 230, w: 1600, h: 120 },
+            paragraphs: [{ text: 'Sub' }],
+            style: {},
+          },
+        },
+      };
+      deck.slides[id] = s;
+      deck.slideOrder.push(id);
+    };
+    mk('s_cover01', 'title', 'AI growth', 330);
+    mk('s_sect001', 'section', 'Milestones', 400);
+    return deck;
+  };
+
+  it('refuses bullets on the cover and tells the model where they go', () => {
+    const { ctx, emitted, tools } = setup(deckWithCovers(), { phase: 'populate' });
+    const r = tools.add_text.execute({
+      slideId: 's_cover01',
+      role: 'body',
+      paragraphs: ['A', 'B'],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/cover/);
+    expect(emitted).toHaveLength(0);
+    expect(ctx.deck.slides.s_cover01.elementOrder).toHaveLength(2);
+  });
+
+  it('moves a later cover-style slide to the content layout, content below the title', () => {
+    const { ctx, emitted, tools } = setup(deckWithCovers(), { phase: 'populate' });
+    const r = tools.add_text.execute({
+      slideId: 's_sect001',
+      role: 'body',
+      paragraphs: ['A', 'B'],
+    });
+    expect(r.ok).toBe(true);
+    expect(emitted.map((e) => e.toolName)).toEqual(['change_layout', 'add_text']);
+    const slide = ctx.deck.slides.s_sect001;
+    expect(slide.layout).toBe('content');
+    const title = slide.elements.el_ts_sect001.bbox;
+    expect(r.bbox.y).toBeGreaterThanOrEqual(title.y + title.h);
+  });
+
+  it('outside generation, auto-placed content still never goes above the title', () => {
+    const { tools } = setup(deckWithCovers());
+    const r = tools.add_text.execute({ slideId: 's_cover01', role: 'body', paragraphs: ['A'] });
+    expect(r.ok).toBe(true);
+    expect(r.bbox.y).toBeGreaterThanOrEqual(330 + 200);
+  });
+});

@@ -16,6 +16,7 @@ import {
   Type,
 } from 'lucide-react';
 import { useDeck } from '@/hooks/useDeck.js';
+import { useFeedback } from '@/hooks/useFeedback.js';
 import { useInsert } from '@/hooks/useInsert.js';
 import { MenuItem } from '@/primitives/MenuItem.jsx';
 import { Button } from '@/primitives/ui/button.jsx';
@@ -32,7 +33,22 @@ export function InsertMenu() {
   const { insert, insertImageFile, insertImageUrl } = useInsert();
   const aiBusy = useDeck((s) => s.aiBusy);
   const fileRef = useRef(null);
-  const reportError = (err) => window.alert(err?.message ?? 'Could not insert that image.');
+  const feedback = useFeedback();
+  const reportError = (err) =>
+    feedback.error("Couldn't insert that image", err?.message ?? 'Try another file or link.');
+  // A modal instead of window.prompt (D62). Opened a tick later, after the menu has closed and
+  // handed focus back, so the dialog keeps focus.
+  const askForImageUrl = () =>
+    setTimeout(async () => {
+      const url = await feedback.prompt({
+        title: 'Insert an image from a link',
+        label: 'Image URL',
+        placeholder: 'https://…',
+        confirmLabel: 'Insert',
+        validate: (v) => (/^https?:\/\/\S+$/.test(v) ? '' : 'Enter a link starting with https://'),
+      });
+      if (url) Promise.resolve(insertImageUrl(url)).catch(reportError);
+    }, 0);
 
   return (
     <>
@@ -58,14 +74,7 @@ export function InsertMenu() {
             label="Image from your computer…"
             onSelect={() => fileRef.current?.click()}
           />
-          <MenuItem
-            icon={Link}
-            label="Image from a URL…"
-            onSelect={() => {
-              const url = window.prompt('Image URL (https://…)');
-              if (url && /^https?:\/\//.test(url.trim())) insertImageUrl(url.trim());
-            }}
-          />
+          <MenuItem icon={Link} label="Image from a URL…" onSelect={askForImageUrl} />
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-label text-muted-foreground">Shapes</DropdownMenuLabel>
           <MenuItem icon={Square} label="Rectangle" onSelect={() => insert('rect')} />
